@@ -70,3 +70,22 @@ See `STEP0.md` for evidence and verification limits.
   transport JSON returns standard JSON-RPC errors. Notifications have no reply.
 - Handoffs also mark the pending launcher record under a lock. This preserves
   live state for Codex runs whose session ID is not known until after exit.
+
+## Milestone 4
+
+- Argument splitting happens before argparse; only start accepts the suffix
+  after --. Argument errors follow the spec's ellie: prefix and exit code 1.
+- Dry-run renders draft memories without saving them, recording last-used
+  state, creating pending captures, or invoking an agent. The rebuildable
+  index can still be initialized. Non-TTY selection uses valid last-used names.
+- Imported Markdown is fenced under Current state with a fence longer than
+  any source fence. This keeps imported headings/IDs from becoming Ellie
+  sections or items while preserving the text for subsequent capture.
+- Explicit Claude --session-id passthrough is preserved and validated rather
+  than duplicated; otherwise the launcher generates a UUID.
+- The selector supports show/search-more/toggle/cancel and whole-memory rows.
+  Automatic preselection stops at 12 items or 8000 item characters. Explicit
+  choices can exceed that budget; startup's total briefing limit still applies.
+- Background extraction and external uncaptured-session discovery are connected
+  in milestone 6, after the agent adapters exist; launcher tests use fake agents
+  with --no-capture and already verify durable pending records.

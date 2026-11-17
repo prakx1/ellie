@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
 import tempfile
 import threading
 import time
@@ -365,6 +366,31 @@ class FileStore:
             raise ValueError("link target must be an existing project")
         root = str(repo_root(cwd))
         self.update_local("paths", lambda data: data.update({root: project}))
+
+    def import_memory(self, project: str, source: Path, name: str, description: str | None = None) -> Memory:
+        content = source.read_text(encoding="utf-8")
+        if description is None:
+            description = next((line.strip() for line in content.splitlines() if line.strip()), "")
+        self.create_memory(project, name, redact(description))
+        fence = "`" * max(3, max((len(match.group()) + 1 for match in re.finditer(r"`+", content)), default=3))
+        header = f"_Imported from {source.name} on {datetime.now().date().isoformat()}. The next handoff or capture will reorganise this._"
+        def change(memory):
+            memory.set_section("Current state", header + "\n\n" + fence + "markdown\n" + content.rstrip("\n") + "\n" + fence)
+            memory.append_log("you", "import", "Imported " + source.name)
+        self.update_memory(project, name, change)
+        return self.read_memory(project, name)
+
+    def edit_memory(self, project: str, name: str, editor: list[str]) -> None:
+        with self.project_lock(project):
+            path = self.memory_path(project, name)
+            with FileLock(path):
+                self.read_memory(project, name)
+                result = subprocess.run([*editor, str(path)], cwd=self.root)
+                if result.returncode:
+                    raise ValueError(f"editor exited with status {result.returncode}")
+                memory = self.read_memory(project, name)
+                self._persist(path, memory)
+            self._notify(project, name)
 
     def read_sessions(self, project: str) -> dict:
         return self._read_json(self.path("projects", validate_project(project), "sessions", "index.json"))

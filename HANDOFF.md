@@ -4,8 +4,11 @@
 
 The user approved proceeding. Milestone 1 is committed as 40d6606.
 Milestone 2 is committed as 2dce7ec (36 tests passed on both Python versions).
-Milestone 3 implements the stdio JSON-RPC server and all 14 tools; all 44 tests
-pass on Python 3.10.20 and 3.14.3. Full tool round-trips and retry/error behavior use real subprocesses.
+Milestone 3 is committed as d918285 (44 tests passed on both versions).
+Milestone 4 implements CLI, launcher, picker, history selector, --about/--with,
+and the startup template. Its 13 targeted CLI/briefing tests pass on both
+versions, including fake agents, a real pseudo-TTY, and BrokenPipe handling.
+All 55 tests pass on Python 3.10.20 and 3.14.3.
 Read the full supplied spec and copied it unchanged from
 `/Users/prakash.singh/Downloads/spec (4).md` to `spec.md`.
 `STEP0.md` contains command evidence, session formats, corrections, and limits.
@@ -29,9 +32,9 @@ external edits/deletion, archives, reindex, and callback cleanup.
 
 ## Next steps
 
-1. Commit milestone 3; implement milestone 4: CLI,
-   launcher, memory picker, briefing selector, prompt template, --with/--about.
-2. Continue milestones 5-8 in order, testing and committing each.
+1. Commit milestone 4; implement milestone 5: safe,
+   idempotent Codex/Claude install/uninstall, backups, and targeted TOML edits.
+2. Continue milestones 6-8 in order, testing and committing each.
 3. Keep every subprocess test isolated using tests.support.IsolatedTest and
    temporary HOME/CODEX_HOME/ELLIE_HOME. No subagent work has been requested.
 

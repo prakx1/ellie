@@ -1,5 +1,8 @@
-from ellie.briefing import render_memory
+import io
+
+from ellie.briefing import pick_memories, render_memory, select_history
 from ellie.model import Item, Memory
+from ellie.service import MemoryService
 from tests.support import IsolatedTest
 
 
@@ -32,3 +35,29 @@ class RenderingTests(IsolatedTest):
         text = render_memory(memory)
         self.assertIn("An agent memory tool", text)
         self.assertNotIn("## Conventions", text)
+
+    def test_history_toggle_show_search_and_whole_memory(self):
+        self.memory()
+        self.store.add_item(self.project, "work", "N", "Refresh", {}, body="Refresh")
+        self.store.add_item(self.project, "work", "N", "Counters", {}, body="Counters")
+        service = MemoryService(self.store)
+        self.addCleanup(service.close)
+        answers = iter(["s 1", "a counters", "2 3", ""])
+        output = io.StringIO()
+        chosen = select_history(service, self.project, "refresh", interactive=True, input_fn=lambda _: next(answers), output=output)
+        self.assertEqual(chosen.ids, ["N1", "N2"])
+        self.assertEqual(chosen.memories, ["work"])
+        self.assertIn("### N1", output.getvalue())
+        self.assertEqual(select_history(service, self.project, "refresh", interactive=True, input_fn=lambda _: "q", output=output).ids, [])
+
+    def test_preselection_budget_and_new_picker(self):
+        self.memory()
+        self.store.add_item(self.project, "work", "N", "Large", {}, body="Large " * 2000)
+        service = MemoryService(self.store)
+        self.addCleanup(service.close)
+        self.assertEqual(select_history(service, self.project, "large", interactive=False).ids, [])
+        answers = iter(["n", "draft", "Description", "Build", "Green"])
+        selection = pick_memories(service, self.project, input_fn=lambda _: next(answers), output=io.StringIO(), dry_run=True)
+        self.assertEqual(selection.memories, ["draft"])
+        self.assertIn("Green", selection.drafts["draft"].get_section("Goal"))
+        self.assertNotIn("draft", [meta.name for meta in self.store.list_memories(self.project)])
