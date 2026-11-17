@@ -358,6 +358,12 @@ class FileStore:
         validate_name(name)
         return self._update_json(self.path(".local", name + ".json"), change)
 
+    def ensure_resource(self, name: str, content: str) -> None:
+        path = self.path(validate_name(name))
+        with FileLock(path):
+            if not path.exists():
+                _replace(path, lambda stream: stream.write(content.encode("utf-8")))
+
     def resolve_project(self, cwd: Path | str) -> tuple[str, Path]:
         return project_id(cwd, self.read_local("paths"))
 

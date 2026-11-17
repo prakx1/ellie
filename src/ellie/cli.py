@@ -73,6 +73,10 @@ def parser() -> argparse.ArgumentParser:
     config = commands.add_parser("config")
     config.add_argument("key", nargs="?")
     config.add_argument("value", nargs="?")
+    install = commands.add_parser("install", help="Register Ellie with Codex and Claude Code")
+    install.add_argument("--codex", action="store_true")
+    install.add_argument("--claude", action="store_true")
+    commands.add_parser("uninstall", help="Remove agent integration; keep all project memories")
     return root
 
 
@@ -179,6 +183,18 @@ def main(argv: list[str] | None = None) -> int:
         if options.command == "mcp":
             from .mcp_server import main as mcp
             return mcp()
+        if options.command == "install":
+            from .install import install
+            installed = install(codex=options.codex, claude=options.claude)
+            print("Installed Ellie for " + ", ".join(installed))
+            if "Claude Code" in installed:
+                print('Tip: add "mcp__ellie" to permissions.allow in Claude settings to skip approval prompts.')
+            return 0
+        if options.command == "uninstall":
+            from .install import uninstall
+            uninstall()
+            print("Removed Ellie agent integration. Project memories are intact.")
+            return 0
         service = MemoryService()
         try:
             return dispatch(service, options, agent_args)

@@ -155,3 +155,12 @@ class CLITests(IsolatedTest):
         process.stderr.close()
         self.assertEqual(process.wait(timeout=20), 0, err)
         self.assertNotIn(b"BrokenPipe", err)
+
+    def test_install_uninstall_commands_use_only_isolated_homes(self):
+        self.memory()
+        before = self.store.read_memory(self.project, "work").to_bytes()
+        self.assertIn("Installed Ellie", self.cli("install").stdout)
+        self.cli("install")
+        self.assertTrue((Path(self.env["CODEX_HOME"]) / "AGENTS.md").exists())
+        self.assertIn("Project memories are intact", self.cli("uninstall").stdout)
+        self.assertEqual(self.store.read_memory(self.project, "work").to_bytes(), before)

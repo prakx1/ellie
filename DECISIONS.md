@@ -89,3 +89,20 @@ See `STEP0.md` for evidence and verification limits.
 - Background extraction and external uncaptured-session discovery are connected
   in milestone 6, after the agent adapters exist; launcher tests use fake agents
   with --no-capture and already verify durable pending records.
+
+## Milestone 5
+
+- Installation backs up existing config before invoking either agent's MCP
+  mutation commands. Backups are never overwritten; memory files and Claude
+  permission settings are not modified by uninstall/integration setup.
+- A small lexical TOML scanner targets only Ellie's table/subtables and tracks
+  arrays, quotes, multiline strings, and comments. It rejects unsafe inline or
+  dotted Ellie assignments in fallback mode rather than risk unrelated config.
+- Installed Claude 2.1.278 writes user MCP config to HOME/.claude.json normally,
+  or CLAUDE_CONFIG_DIR/.claude.json when the override is set (verified with the
+  actual CLI in a temporary home). Instruction files respect that override too.
+- Claude also has a JSON fallback when its CLI is unavailable or unsuccessful;
+  registration is verified from config before success is reported. Other JSON
+  keys/servers are preserved. The user explicitly opts into blanket approvals.
+- Agent-config targets inside a Git repo or symlinked config files are refused,
+  consistent with the no-repository-modifications constraint.
