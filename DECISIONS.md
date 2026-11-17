@@ -56,3 +56,17 @@ See `STEP0.md` for evidence and verification limits.
 - Write callbacks update the cache immediately. Startup/search checks also
   detect external edits, moves, and deletions. Closing an index detaches its
   callback; Markdown remains the source of truth.
+
+## Milestone 3
+
+- A shared MemoryService routes MCP operations through Store mutations and
+  keeps the search cache current. Protocol includes these mutation/cache/local
+  operations so callers do not depend on FileStore-specific implementation.
+- Briefing rendering was brought forward from milestone 4 to meet the MCP
+  load contract. Shared memory includes Overview and Conventions; workstreams
+  use Goal/State. Both apply the specified active/open/recent-item filters.
+- MCP returns text content plus structuredContent for successful object
+  results; tool errors return isError without terminating the process. Invalid
+  transport JSON returns standard JSON-RPC errors. Notifications have no reply.
+- Handoffs also mark the pending launcher record under a lock. This preserves
+  live state for Codex runs whose session ID is not known until after exit.
