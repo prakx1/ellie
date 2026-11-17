@@ -41,3 +41,18 @@ See `STEP0.md` for evidence and verification limits.
 - Common-secret redaction is implemented at the storage boundary now because
   milestone 1 already introduces item write paths. Raw transcript archives
   remain exact copies of the available source, as specified.
+
+## Milestone 2
+
+- SQLite bm25 returns negative relevance values, with more relevant matches
+  more negative. Negate it before applying the recency/type multipliers and
+  sort scores descending; multiplying raw negatives would reverse the weights.
+- Natural-language queries match any word, with title weight 5 and body weight
+  1. Escape FTS terms and LIKE wildcard characters rather than accepting SQL or
+  FTS query syntax. LIKE applies Python Unicode casefolding.
+- Search includes archived memories, preserving project history and IDs.
+  Missing/invalid dates receive a neutral recency multiplier; future ages clamp
+  to zero. The index records mtime nanoseconds, size, and archive location.
+- Write callbacks update the cache immediately. Startup/search checks also
+  detect external edits, moves, and deletions. Closing an index detaches its
+  callback; Markdown remains the source of truth.

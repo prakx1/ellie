@@ -2,14 +2,17 @@
 
 ## State
 
-The user approved proceeding. Milestone 1 is complete and ready for its commit.
+The user approved proceeding. Milestone 1 is committed as 40d6606.
+Milestone 2 (search index) is complete: all 36 tests pass on Python 3.10.20 and 3.14.3.
 Read the full supplied spec and copied it unchanged from
 `/Users/prakash.singh/Downloads/spec (4).md` to `spec.md`.
 `STEP0.md` contains command evidence, session formats, corrections, and limits.
 Implemented paths.py, model.py, store.py, redaction, and package metadata.
-29 unittest tests pass on Python 3.10.20 and 3.14.3. Tests cover real temporary
+The milestone 1 suite of 29 tests passed on Python 3.10.20 and 3.14.3. Tests cover real temporary
 Git worktrees, byte round-trips, eight concurrent writer subprocesses, IDs,
 supersede/resolve, redaction, stale locks, atomic-failure recovery, and archives.
+Index tests cover FTS5/LIKE ranking, filtering, superseded exclusion, Unicode,
+external edits/deletion, archives, reindex, and callback cleanup.
 
 ## Environment and constraints
 
@@ -24,9 +27,9 @@ supersede/resolve, redaction, stale locks, atomic-failure recovery, and archives
 
 ## Next steps
 
-1. Commit milestone 1, then implement milestone 2: SQLite index, FTS5/LIKE,
-   specified ranking, external-edit detection, and reindex.
-2. Continue milestones 3-8 in order, testing and committing each.
+1. Commit milestone 2; implement milestone 3: subprocess
+   JSON-RPC MCP server and all tools, with short descriptions.
+2. Continue milestones 4-8 in order, testing and committing each.
 3. Keep every subprocess test isolated using tests.support.IsolatedTest and
    temporary HOME/CODEX_HOME/ELLIE_HOME. No subagent work has been requested.
 
