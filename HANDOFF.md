@@ -6,11 +6,13 @@ The user approved proceeding. Milestone 1 is committed as 40d6606.
 Milestone 2 is committed as 2dce7ec (36 tests passed on both Python versions).
 Milestone 3 is committed as d918285 (44 tests passed on both versions).
 Milestone 4 is committed as b8c2687 (55 tests passed on both versions).
-Milestone 5 implements Codex/Claude install/uninstall, one-time backups,
-targeted TOML handling, instruction markers, and editable extraction guidance.
-Seven targeted installer tests passed on both Python versions; the real Codex
-CLI parsed the fallback TOML in temporary CODEX_HOME. All 63 tests pass on
-Python 3.10.20 and 3.14.3.
+Milestone 5 is committed as c491ecb (63 tests passed on both versions).
+Milestone 6 implements adapters, safe headless extraction, strict schema/retry,
+merge/state/dedupe rules, ancestry archives, external capture, durable retries,
+and automatic background capture. Targeted tests pass on both versions,
+including actual fake-CLI subprocesses, concurrent workers, and launcher exit.
+All 84 tests pass on Python 3.10.20 and 3.14.3.
+Milestone 6 is ready for its commit.
 Read the full supplied spec and copied it unchanged from
 `/Users/prakash.singh/Downloads/spec (4).md` to `spec.md`.
 `STEP0.md` contains command evidence, session formats, corrections, and limits.
@@ -34,10 +36,10 @@ external edits/deletion, archives, reindex, and callback cleanup.
 
 ## Next steps
 
-1. Commit milestone 5; implement milestone 6: agent session
-   adapters, safe headless extraction, strict schema/retry, merge, pending jobs,
-   and background capture using fake codex/claude scripts in tests.
-2. Continue milestones 7-8 in order, testing and committing each.
+1. Commit milestone 6; implement milestone 7: oldest-first
+   backfill with confirmation/estimate, doctor, and README/installation docs.
+2. Complete milestone 8 acceptance review with honest pass/fail and integration
+   limits; fix any implementation gaps found during that review.
 3. Keep every subprocess test isolated using tests.support.IsolatedTest and
    temporary HOME/CODEX_HOME/ELLIE_HOME. No subagent work has been requested.
 
@@ -46,10 +48,7 @@ external edits/deletion, archives, reindex, and callback cleanup.
 - Authenticated ephemeral fork/no-resume-history behavior, server-side schema
   strictness, and live MCP approval behavior remain unverified. Do not access
   or copy real credentials to test them.
-- Extraction must exclude inherited MCP tools/hooks as well as enforce
-  read-only/no-tool access.
-- Validate Claude's inner `structured_output` rather than its result envelope.
-- Add fixtures for both Codex history generations and Claude prompt/tool-result
-  distinctions.
-- Handle concurrent/resumed-session matching and paginated fork archive ancestry.
-- Cross-agent extraction requires transcript context, not native resume IDs.
+- Required extraction isolation, schema/envelope handling, both history formats,
+  live-state protection, concurrency, cross-agent context, and parent archive
+  boundaries are implemented and tested with fake CLIs. Actual authenticated
+  CLI integration is still intentionally unverified.

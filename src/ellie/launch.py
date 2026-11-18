@@ -86,13 +86,8 @@ def start(service, options, agent_args: list[str]) -> int:
     record = {"run_id": run_id, "project": project, "agent": agent, "cwd": str(Path.cwd()),
               "started": datetime.now().astimezone().isoformat(), "memories": selection.memories,
               "session_id": session_id, "capture": "pending"}
-    # Adapter discovery is wired in milestone 6; the launcher record is durable now.
-    try:
-        from .capture import snapshot_sessions
-    except ImportError:
-        pass
-    else:
-        record["before_sessions"] = snapshot_sessions(agent)
+    from .capture import snapshot_sessions
+    record["before_sessions"] = snapshot_sessions(agent)
     service.store.write_pending(run_id, record)
     env = {**os.environ, "ELLIE_AGENT": "claude-code" if agent == "claude" else "codex", "ELLIE_RUN_ID": run_id}
     process = subprocess.Popen(command, cwd=Path.cwd(), env=env)

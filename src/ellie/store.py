@@ -256,6 +256,8 @@ class FileStore:
     def write_memory(self, project: str, memory: Memory) -> None:
         with self.project_lock(project):
             path = self.memory_path(project, memory.name)
+            if memory.name != "project":
+                self._ensure_project(project, memory.meta.get("updated_by", "you"))
             with FileLock(path):
                 if path.exists():
                     if memory.original is None or path.read_bytes() != memory.original:
@@ -364,6 +366,19 @@ class FileStore:
             if not path.exists():
                 _replace(path, lambda stream: stream.write(content.encode("utf-8")))
 
+    def read_resource(self, name: str, default: str = "") -> str:
+        path = self.path(validate_name(name))
+        return path.read_bytes().decode("utf-8") if path.exists() else default
+
+    def list_pending(self) -> list[dict]:
+        return [{**self._read_json(self.path(".local", "pending", path.name)), "run_id": path.stem}
+                for path in sorted(self.path(".local", "pending").glob("*.json"))]
+
+    def delete_pending(self, run: str) -> None:
+        path = self.path(".local", "pending", validate_name(run) + ".json")
+        with FileLock(path):
+            path.unlink(missing_ok=True)
+
     def resolve_project(self, cwd: Path | str) -> tuple[str, Path]:
         return project_id(cwd, self.read_local("paths"))
 
@@ -410,16 +425,30 @@ class FileStore:
     def update_sessions(self, project: str, change: Callable[[dict], T]) -> T:
         return self._update_json(self.path("projects", validate_project(project), "sessions", "index.json"), change)
 
-    def archive_transcript(self, project: str, src: Path, name: str) -> str:
+    def archive_transcript(self, project: str, src: Path, name: str, *, limit_bytes: int | None = None) -> str:
         if not re.fullmatch(r"[a-zA-Z0-9_.-]+\.jsonl\.gz", name) or name.startswith("."):
             raise ValueError("invalid transcript archive name")
         dest = self.path("projects", validate_project(project), "sessions", name)
         with FileLock(dest):
             def copy(stream):
                 with Path(src).open("rb") as source, gzip.GzipFile(filename="", fileobj=stream, mode="wb", mtime=0) as zipped:
-                    shutil.copyfileobj(source, zipped)
+                    if limit_bytes is None:
+                        shutil.copyfileobj(source, zipped)
+                    else:
+                        remaining = limit_bytes
+                        while remaining:
+                            chunk = source.read(min(65536, remaining))
+                            if not chunk:
+                                raise ValueError("transcript prefix is incomplete")
+                            zipped.write(chunk)
+                            remaining -= len(chunk)
             _replace(dest, copy)
         return name
+
+    def read_archive_text(self, project: str, name: str, limit: int) -> str:
+        path = self.path("projects", validate_project(project), "sessions", validate_name(name))
+        with gzip.open(path, "rt", encoding="utf-8") as source:
+            return source.read(limit)
 
     def get_item(self, project: str, id: str) -> tuple[str, Item]:
         if not re.fullmatch(r"[DRFQN][0-9]+", id):
@@ -444,21 +473,39 @@ class FileStore:
             raise ValueError("invalid item type")
         if type == "F" and fields.get("scope") == "project":
             memory = "project"
+        if type == "F" and memory == "project":
+            fields = {**fields, "scope": "project"}
         if source not in {"live", "auto", "manual", "import", "backfill"}:
             raise ValueError("invalid item source")
         with self.project_lock(project):
             target = self.read_memory(project, memory)
+            duplicate = None
             for item in target.items:
                 if item.type != type or normalized_title(item.title) != normalized_title(title):
                     continue
                 if dedupe or self._recent_item(target, item.id, retry_seconds):
-                    return item.id
+                    duplicate = item.id
+                    break
             old_decisions = {}
             for old_id in supersedes or []:
                 old_name, old = self.get_item(project, old_id)
                 if type != "D" or old.type != "D":
                     raise ValueError("only decisions may supersede decisions")
+                if old_id == duplicate:
+                    raise ValueError("a decision cannot supersede itself")
                 old_decisions[old_id] = old_name
+            if duplicate:
+                # Repair an interrupted cross-file supersede even on a retry.
+                for old_id, old_name in old_decisions.items():
+                    old_memory = self.read_memory(project, old_name)
+                    old = old_memory.get_item(old_id)
+                    if old.fields.get("status") != "superseded by " + duplicate:
+                        old.set_field("status", "superseded by " + duplicate)
+                        old_memory.replace_item(old)
+                        with FileLock(self.memory_path(project, old_name)):
+                            self._persist(self.memory_path(project, old_name), old_memory)
+                        self._notify(project, old_name)
+                return duplicate
             prepared = {"date": datetime.now().astimezone().date().isoformat(), "source": f"{agent} · {source}" + (f" · session {session}" if session else ""), **fields}
             if supersedes:
                 prepared["supersedes"] = " · ".join(supersedes)

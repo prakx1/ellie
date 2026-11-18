@@ -114,6 +114,8 @@ def main() -> int:
                 sys.stdout.write(json.dumps(response, ensure_ascii=False, allow_nan=False) + "\n")
                 sys.stdout.flush()
     except BrokenPipeError:
+        with open(os.devnull, "w") as sink:
+            os.dup2(sink.fileno(), sys.stdout.fileno())
         return 0
     finally:
         server.service.close()

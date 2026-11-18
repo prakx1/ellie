@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from pathlib import Path
 
 from .briefing import render_memory
@@ -34,11 +35,11 @@ class MemoryService:
 
     def status(self, project: str) -> dict:
         memories = [vars(meta) for meta in self.store.list_memories(project)]
-        sessions = self.store.read_sessions(project)
+        from .capture import uncaptured_status
         return {"project": project, "memories": memories,
                 "last_used": self.store.read_local("state").get("last_used", {}).get(project, []),
                 "archived_count": len(self.store.list_memories(project, True)),
-                "uncaptured_sessions": sum(record.get("capture") not in {"done", "skipped"} for record in sessions.values())}
+                **uncaptured_status(self.store, project)}
 
     def load(self, project: str, memories: list[str]) -> dict:
         memories = list(dict.fromkeys(name for name in memories if name != "project"))
@@ -79,26 +80,36 @@ class MemoryService:
         run = os.environ.get("ELLIE_RUN_ID")
         return self.store.read_pending(run).get("session_id") if run else None
 
+    def _record_item(self, project: str, id: str) -> dict:
+        run = os.environ.get("ELLIE_RUN_ID")
+        if run and self.store.read_pending(run):
+            def record(job):
+                if job.get("project") == project and id not in job.setdefault("live_items", []):
+                    job["live_items"].append(id)
+            self.store.update_pending(run, record)
+        return {"id": id}
+
     def decide(self, project: str, memory: str, title: str, options: list[str], chosen: str, tradeoff: str, why: str, supersedes: list[str] | None = None, refs: list[str] | None = None) -> dict:
         fields = {"status": "active", "options": " · ".join(options), "chosen": chosen, "tradeoff": tradeoff, "why": why}
         if refs:
             fields["refs"] = " · ".join(refs)
-        return {"id": self.store.add_item(project, memory, "D", title, fields, agent=self.agent, session=self._session(), supersedes=supersedes)}
+        return self._record_item(project, self.store.add_item(project, memory, "D", title, fields, agent=self.agent, session=self._session(), supersedes=supersedes))
 
     def result(self, project: str, memory: str, title: str, outcome: str, what: str, evidence: str, refs: list[str] | None = None) -> dict:
         fields = {"outcome": outcome, "what": what, "evidence": evidence}
         if refs:
             fields["refs"] = " · ".join(refs)
-        return {"id": self.store.add_item(project, memory, "R", title, fields, agent=self.agent, session=self._session())}
+        return self._record_item(project, self.store.add_item(project, memory, "R", title, fields, agent=self.agent, session=self._session()))
 
     def finding(self, project: str, memory: str, title: str, detail: str, scope: str, evidence: str = "") -> dict:
-        return {"id": self.store.add_item(project, memory, "F", title, {"detail": detail, "scope": scope, "evidence": evidence}, agent=self.agent, session=self._session())}
+        return self._record_item(project, self.store.add_item(project, memory, "F", title, {"detail": detail, "scope": scope, "evidence": evidence}, agent=self.agent, session=self._session()))
 
     def question(self, project: str, memory: str, text: str) -> dict:
-        return {"id": self.store.add_item(project, memory, "Q", text, {"status": "open"}, agent=self.agent, session=self._session())}
+        return self._record_item(project, self.store.add_item(project, memory, "Q", text, {"status": "open"}, agent=self.agent, session=self._session()))
 
     def resolve(self, project: str, id: str, answer: str) -> dict:
         self.store.resolve(project, id, answer, agent=self.agent, session=self._session())
+        self._record_item(project, id)
         return {"id": id, "status": "resolved"}
 
     def log(self, project: str, memory: str, entry: str, kind: str) -> dict:
@@ -122,9 +133,9 @@ class MemoryService:
             doc.append_log(self.agent, "handoff", redact(session_summary), self._session())
         self.store.update_memory(project, memory, change, agent=self.agent)
         run = os.environ.get("ELLIE_RUN_ID")
-        if run:
+        if run and self.store.read_pending(run):
             def mark(job):
                 if job.get("project") == project:
-                    job.setdefault("live_handoffs", {})[memory] = stamp()
+                    job.setdefault("live_handoffs", {})[memory] = datetime.now().astimezone().isoformat()
             self.store.update_pending(run, mark)
         return {"memory": memory}

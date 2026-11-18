@@ -106,3 +106,36 @@ See `STEP0.md` for evidence and verification limits.
   keys/servers are preserved. The user explicitly opts into blanket approvals.
 - Agent-config targets inside a Git repo or symlinked config files are refused,
   consistent with the no-repository-modifications constraint.
+
+## Milestone 6
+
+- Discovery reads agent-owned formats only through their adapters, filters by
+  project identity (including subfolders/clones), and reports malformed files
+  rather than guessing. Codex matching uses snapshot changes and exact launch
+  cwd; ambiguous jobs stay pending. Active known launcher runs are excluded.
+- Capture uses source mtime/size versions, so resumed sessions with new records
+  become uncaptured again. Job and session locks prevent duplicate extraction.
+- Codex extraction ignores user config/rules, disables hooks/plugins/apps/shell
+  and multi-agent tools, disables configured MCP servers explicitly, and forces
+  read-only/never-escalate policy from a temporary cwd. Claude uses safe mode,
+  no built-in tools, an empty strict MCP config, and disabled permission prompts;
+  its native resume runs from the source project cwd for history lookup. Old
+  clients missing required safety flags fail before model invocation.
+- API-key/auth-token environment variables are removed from extraction children.
+  Subscription credentials remain the CLI's responsibility; Ellie never reads
+  or copies login files. Live authenticated behavior remains unverified here.
+- Every schema object is strict with all properties required and explicit nulls.
+  Python validates shape and references before merge; invalid JSON/schema gets
+  one retry. CLI failures/timeouts retain pending records for explicit retry.
+- Archives are saved before model invocation so failed extraction does not lose
+  the available source snapshot. Paginated parent prefixes are archived at their
+  recorded byte boundary under distinct names, and linked from the registry.
+  Missing parent history fails the job. Cross-agent input uses these snapshots,
+  with an explicit 2000000-character limit; native forks avoid that transfer.
+- Live tool items are tracked in pending records even before a Codex session ID
+  is known. Their IDs join the final registry. Auto handoff log entries carry a
+  capture marker so subsequent extraction does not mistake them for live state.
+- Duplicate decision retries also repair supersede statuses, allowing recovery
+  from an interrupted multi-file save. Summaries count associated items and
+  distinguish failed/partial/worked results; they are displayed on the next CLI
+  project command (JSON output remains machine-readable).

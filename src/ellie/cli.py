@@ -77,6 +77,13 @@ def parser() -> argparse.ArgumentParser:
     install.add_argument("--codex", action="store_true")
     install.add_argument("--claude", action="store_true")
     commands.add_parser("uninstall", help="Remove agent integration; keep all project memories")
+    capture = commands.add_parser("capture", help="Capture pending and uncaptured sessions")
+    capture.add_argument("--wait", action="store_true")
+    capture.add_argument("--session")
+    capture.add_argument("--since", default="7d")
+    capture.add_argument("--dry-run", action="store_true")
+    worker = commands.add_parser("_capture", help=argparse.SUPPRESS)
+    worker.add_argument("run_id")
     return root
 
 
@@ -101,6 +108,11 @@ def set_config(service, key, value):
 
 def dispatch(service, options, agent_args):
     command = options.command or "status"
+    if command == "_capture":
+        from .capture import process_job
+        result = process_job(service.store, options.run_id)
+        print(json.dumps(result, ensure_ascii=False))
+        return int(result["capture"] == "failed")
     if command == "start":
         from .launch import start
         return start(service, options, agent_args)
@@ -122,6 +134,11 @@ def dispatch(service, options, agent_args):
         print(f"Indexed {service.index.reindex()} items.")
         return 0
     project = service.project()
+    summaries = service.store.read_local("state").get("capture_summaries", {}).get(project, [])
+    if summaries and not (command == "brief" and options.json):
+        messages = service.store.update_local("state", lambda data: data.get("capture_summaries", {}).pop(project, []))
+        for message in messages:
+            print(message)
     if command == "status":
         status = service.status(project)
         print("Project: " + project)
@@ -164,6 +181,33 @@ def dispatch(service, options, agent_args):
         selection = select_history(service, project, options.task, interactive=False if options.json else None)
         context = render_briefing(service, project, selection)
         print(json.dumps({"project": project, "memories": selection.memories, "ids": selection.ids, "briefing": context}, ensure_ascii=False) if options.json else context)
+    elif command == "capture":
+        from .capture import plan_jobs, process_job, start_background
+        jobs, errors = plan_jobs(service.store, project, since=options.since, session_id=options.session)
+        failed = bool(errors)
+        for error in errors:
+            print("ellie: " + error, file=sys.stderr)
+        for job in jobs:
+            if options.dry_run:
+                print(f"Would capture {job['agent']} {job['session_id']} for {project}")
+                continue
+            if service.store.read_pending(job["run_id"]):
+                service.store.update_pending(job["run_id"], lambda data: data.update({"session_id": job["session_id"]}))
+            else:
+                service.store.write_pending(job["run_id"], job)
+            if options.wait:
+                result = process_job(service.store, job["run_id"])
+                if result["capture"] == "failed":
+                    print("ellie: " + result["error"], file=sys.stderr)
+                    failed = True
+                else:
+                    print(result.get("summary", result["capture"]))
+            else:
+                start_background(service.store, job["run_id"])
+                print("ellie: capturing " + job["session_id"] + " in background")
+        if not jobs and not errors:
+            print("No uncaptured sessions.")
+        return int(failed)
     return 0
 
 
