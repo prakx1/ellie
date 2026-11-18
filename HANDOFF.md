@@ -12,12 +12,22 @@ briefings, startup flags and the picker. Explicit session_id bindings isolate
 parallel MCP chats. Added conversations, bind and timeline tools (17 total).
 47 focused tests pass, including real MCP subprocess and CLI exclusion checks.
 
-Next: lifecycle hooks/install, durable incremental capture, privacy filtering
-and pause/exclusion controls, save-health indicators and conversation selection
-in the dashboard. tests/test_privacy.py is the next failing tracer test and is
-not part of the first slice's commit. After completing all slices, run the full
-suite on Python 3.10/latest, package smoke, update docs, commit and push only
-code/tests/development docs. Never inspect or push the user's real memory.
+Second slice: native Codex/Claude lifecycle commands now bind normal sessions,
+inject compact context, and queue durable checkpoints. Background workers batch
+complete new JSONL records, preserve newly queued generations during extraction,
+and retry CLI failures at most three times. Hooks never call a model directly.
+Installation/uninstall preserve other hooks and permissions. Private text and
+common secrets are filtered from new Ellie-owned archives and model input; pause,
+exclude/include, and archive-off controls are available. Existing raw archives
+are not retroactively changed. Capture health includes observed/saved/captured
+times, pending work and errors. 116 tests pass on Python 3.14.3.
+
+Next: finish conversation selection and health in the dashboard (API filter
+tracer is in progress), run the full suite on Python 3.10/latest, package smoke,
+update docs, commit and push only code/tests/development docs. Never inspect or
+push the user's real memory. No authenticated model run or real profile edit has
+been performed; Codex's hook feature was checked in an isolated profile and is
+stable/enabled. Hook trust must still be reviewed by the user in the client.
 
 ## State
 

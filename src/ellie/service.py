@@ -16,7 +16,8 @@ from .redact import redact
 from .store import FileStore, Store
 
 DEFAULTS = {"agent": "codex", "capture": "auto", "extract_with": "same", "extract_timeout_sec": 600,
-            "log_limit": 25, "briefing_max_chars": 24000, "brief_preselect": 12, "backfill_default_since": "30d"}
+            "log_limit": 25, "briefing_max_chars": 24000, "brief_preselect": 12, "backfill_default_since": "30d",
+            "checkpoint_interval_sec": 120}
 
 
 class MemoryService:
@@ -49,6 +50,10 @@ class MemoryService:
         return conversations
 
     def _check_destination(self, project, memory):
+        from .privacy import blocked
+        reason = blocked(self.store, project, self._session())
+        if reason:
+            raise ValueError(reason)
         session = self._session()
         record = self.store.read_sessions(project).get(session, {}) if session else {}
         if "bound_memories" in record and memory != "project" and memory not in record["bound_memories"]:
@@ -74,6 +79,10 @@ class MemoryService:
     def conversations(self, project: str) -> dict:
         from .conversations import list_conversations
         return {"project": project, "conversations": list_conversations(self.store, project)}
+
+    def privacy(self, project: str, action: str = "status", conversation: str | None = None, archives: str | None = None) -> dict:
+        from .privacy import control
+        return control(self.store, project, action, conversation, archives)
 
     def timeline(self, project: str, anchor: str | None = None, query: str = "", before: int = 3, after: int = 3, conversations: list[str] | None = None) -> dict:
         from .conversations import memberships, selected_items
@@ -114,7 +123,8 @@ class MemoryService:
     def status(self, project: str) -> dict:
         memories = [vars(meta) for meta in self.store.list_memories(project)]
         from .capture import uncaptured_status
-        return {"project": project, "memories": memories,
+        from .privacy import health
+        return {"project": project, "memories": memories, "capture_health": health(self.store, project),
                 "last_used": self.store.read_local("state").get("last_used", {}).get(project, []),
                 "archived_count": len(self.store.list_memories(project, True)),
                 **uncaptured_status(self.store, project)}
@@ -159,6 +169,10 @@ class MemoryService:
         return {"items": [hit.as_dict() for hit in self.index.recall(query, project=project, types=types, limit=limit, include_superseded=include_superseded, all_projects=all_projects, conversations=conversations)]}
 
     def create(self, project: str, name: str, description: str, goal: str = "", done_when: str = "") -> dict:
+        from .privacy import blocked
+        reason = blocked(self.store, project, self._session())
+        if reason:
+            raise ValueError(reason)
         if name == "project":
             raise ValueError("use the shared project memory; create names a workstream")
         self.store.create_memory(project, name, description, agent=self.agent, goal=goal, done_when=done_when)

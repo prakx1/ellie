@@ -82,6 +82,12 @@ if mode=='timeout': time.sleep(10)
 if mode=='error':
     print('Canned CLI failure',file=sys.stderr); raise SystemExit(9)
 payload=json.loads(pathlib.Path(os.environ['FAKE_PAYLOAD']).read_text())
+if os.environ.get('FAKE_STARTED'):
+    pathlib.Path(os.environ['FAKE_STARTED']).write_text('started')
+    deadline=time.monotonic()+15
+    while not pathlib.Path(os.environ['FAKE_RELEASE']).exists():
+        if time.monotonic()>deadline: raise SystemExit(8)
+        time.sleep(0.02)
 invalid=mode=='invalid' or (mode=='invalid-then-valid' and count==1)
 raw='{}' if invalid else json.dumps(payload)
 if agent=='codex':

@@ -11,6 +11,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 import uuid
 
 from .agents import Discovery, Session, adapter, timestamp
@@ -131,6 +132,9 @@ def _live_handoff(memory, job: dict, session: Session) -> bool:
 def merge(store, project: str, session: Session, job: dict, value: dict) -> tuple[list[str], str]:
     ids = list(job.get("live_items", []))
     target, new = target_memory(value, job.get("memories", []))
+    bound = job.get("bound_memories")
+    if bound is not None and target not in bound and target != "project":
+        raise ValueError("capture target is outside the conversation's bound workstreams")
     if not value["worthwhile"]:
         return ids, job.get("memories", ["project"])[0] if job.get("memories") else "project"
     actor = "claude-code" if session.agent == "claude" else "codex"
@@ -144,6 +148,8 @@ def merge(store, project: str, session: Session, job: dict, value: dict) -> tupl
     for key, type in (("decisions", "D"), ("results", "R"), ("findings", "F"), ("questions", "Q"), ("notes", "N")):
         for record in value[key]:
             destination = record["memory"] or target
+            if bound is not None and destination not in bound and not (type == "F" and record.get("scope") == "project") and destination != "project":
+                raise ValueError("capture item is outside the conversation's bound workstreams")
             if fallback and type not in {"D", "F"}:
                 continue
             title = _line(record.get("title", record.get("text", "")))
@@ -192,13 +198,22 @@ def merge(store, project: str, session: Session, job: dict, value: dict) -> tupl
         store.update_memory(project, target, handoff, agent=actor)
     elif value["session_summary"]:
         store.update_memory(project, target, lambda memory: memory.append_log(actor, "handoff", _line(value["session_summary"]) + " · capture " + source, session.id), agent=actor)
+    from .conversations import save_sections
+    sections = {}
+    if value["goal"] and target != "project":
+        sections["Goal"] = value["goal"]["text"] + "\n\n**Done when:** " + value["goal"]["done_when"]
+    if value["state"] and target != "project" and not _live_handoff(store.read_memory(project, target), job, session):
+        sections.update({"Current state": value["state"]["current_state"], "Next steps": value["state"]["next_steps"]})
+    save_sections(store, project, session.id, target, sections, value["session_summary"])
     return list(dict.fromkeys(ids)), target
 
 
-def _archives(store, project: str, session: Session) -> tuple[str, list[dict], list[Session]]:
+def _archives(store, project: str, session: Session, *, enabled=True, primary_size=None, start_byte=None) -> tuple[str | None, list[dict], list[Session]]:
     primary = f"{session.started.astimezone().date().isoformat()}_{session.agent}_{session.id}.jsonl.gz"
+    if start_byte is not None:
+        primary = primary.replace(".jsonl.gz", f"_part-{start_byte}-{primary_size}.jsonl.gz")
     ancestry, parents = [], []
-    base = session.history_base
+    base = session.history_base if not start_byte else None
     seen = {session.id}
     while base:
         if not isinstance(base, dict) or "thread_id" not in base:
@@ -211,12 +226,15 @@ def _archives(store, project: str, session: Session) -> tuple[str, list[dict], l
             raise ValueError("Codex history prefix has no supported byte boundary")
         parent = adapter("codex").find_ancestor(base["thread_id"], limit_bytes=size)
         name = f"{parent.started.astimezone().date().isoformat()}_codex_{parent.id}_prefix-{size}.jsonl.gz"
-        store.archive_transcript(project, parent.path, name, limit_bytes=size)
-        ancestry.append({**base, "archive": name})
+        if enabled:
+            store.archive_transcript(project, parent.path, name, limit_bytes=size, filter_private=True)
+        ancestry.append({**base, "archive": name if enabled else None})
         parents.append(parent)
         base = parent.history_base
-    store.archive_transcript(project, session.path, primary)
-    return primary, ancestry, parents
+    if enabled:
+        count = primary_size - (start_byte or 0) if primary_size is not None else None
+        store.archive_transcript(project, session.path, primary, limit_bytes=count, start_byte=start_byte or 0, filter_private=True)
+    return primary if enabled else None, ancestry, parents
 
 
 def _summary(store, project: str, target: str, ids: list[str]) -> str:
@@ -246,32 +264,59 @@ def process_job(store, run_id: str) -> dict:
         if not job:
             return {"capture": "done", "run_id": run_id}
         project = job["project"]
+        generation = job.get("generation", 0)
+        from .privacy import blocked, needs_filtering, policy, read_chunk
+        reason = blocked(store, project, job.get("session_id"))
+        if reason:
+            store.update_pending(run_id, lambda current: current.update({"capture": "paused", "error": reason}))
+            return {"capture": "paused", "run_id": run_id, "error": reason}
         session = None
         try:
-            found = discover_project(store, project)
+            if job.get("transcript_path"):
+                from .hooks import transcript_path
+                path = transcript_path(job["agent"], job["transcript_path"])
+                candidate = adapter(job["agent"]).read(path)
+                if candidate is None or store.resolve_project(candidate.cwd)[0] != project:
+                    raise ValueError("hook transcript does not belong to this project")
+                found = Discovery([candidate])
+            else:
+                found = discover_project(store, project)
             session = match_session(job, found.sessions)
             job["session_id"] = session.id
             store.update_pending(run_id, lambda current: current.update({"session_id": session.id, "capture": "running", "error": None}))
             with FileLock(store.path(".local", "sessions", session.agent + "-" + session.id), timeout=0):
                 registry = store.read_sessions(project)
                 if captured(session, registry):
-                    store.delete_pending(run_id)
+                    store.finish_pending(run_id, generation)
                     return {"capture": registry[session.id]["capture"], "session_id": session.id}
                 version = session.version
+                transcript, offset = None, None
+                if job.get("incremental"):
+                    offset = registry.get(session.id, {}).get("source_version", [0, 0])[1]
+                    if offset > version[1]:
+                        offset = 0
+                    transcript, end = read_chunk(session.path, offset, upto=version[1])
+                    version = [version[0], end]
+                    transcript = f"Conversation {session.id}; new activity from source byte {offset}.\n" + transcript
                 store.ensure_project(project)
                 store.update_sessions(project, lambda data: data.setdefault(session.id, {}).update({"capture": "running", "agent": session.agent}))
-                archive, ancestry, parents = _archives(store, project, session)
+                archive, ancestry, parents = _archives(store, project, session, enabled=policy(store, project)["archives"] != "off", primary_size=version[1], start_byte=offset)
+                if offset:
+                    ancestry = registry.get(session.id, {}).get("ancestry", [])
                 store.update_sessions(project, lambda data: data[session.id].update({"archive": archive, "ancestry": ancestry}))
-                if session.user_messages + sum(parent.user_messages for parent in parents) < 2:
+                if session.user_messages + sum(parent.user_messages for parent in parents) < 2 and not job.get("incremental"):
                     ids, target, status = [], "project", "skipped"
                 else:
                     config = {**DEFAULTS, **store.read_local("config")}
-                    transcript = None
-                    if config["extract_with"] not in {"same", session.agent}:
+                    config["context_conversations"] = job.get("context_conversations")
+                    config["bound_memories"] = job.get("bound_memories")
+                    config["current_session"] = session.id
+                    filtered = False if job.get("incremental") else needs_filtering(session.path, version[1]) or any(needs_filtering(parent.path, entry["end_byte_offset"]) for parent, entry in zip(parents, ancestry))
+                    if not job.get("incremental") and (filtered or config["extract_with"] not in {"same", session.agent}):
                         pieces = []
                         size = 0
-                        for name in [*[entry["archive"] for entry in reversed(ancestry)], archive]:
-                            piece = store.read_archive_text(project, name, 2_000_001 - size)
+                        for source, boundary in [*[(parent, entry["end_byte_offset"]) for parent, entry in reversed(list(zip(parents, ancestry)))], (session, version[1])]:
+                            piece, _ = read_chunk(source.path, upto=boundary, max_bytes=boundary)
                             size += len(piece)
                             if size > 2_000_000:
                                 raise ValueError("cross-agent transcript exceeds 2000000 characters; use extract_with=same")
@@ -280,23 +325,37 @@ def process_job(store, run_id: str) -> dict:
                     value = extract(session, store, project, job.get("memories", []), config, transcript=transcript)
                     # Fetch live handoff markers again after the model returns.
                     job = {**job, **store.read_pending(run_id)}
+                    reason = blocked(store, project, session.id)
+                    if reason:
+                        raise ValueError(reason)
                     ids, target = merge(store, project, session, job, value)
                     status = "done"
                 def record(data):
+                    from .conversations import now
                     previous = data.get(session.id, {})
                     data[session.id] = {**previous, "agent": session.agent, "started": session.started.isoformat(),
                         "ended": job.get("ended") or session.ended.isoformat(), "cwd": session.cwd,
                         "memories": job.get("memories") or ([target] if target != "project" else []),
                         "launched_by": job.get("launched_by", "ellie"), "capture": status,
                         "items": list(dict.fromkeys([*previous.get("items", []), *ids])),
-                        "archive": archive, "ancestry": ancestry, "source_version": version}
+                        "archive": archive, "ancestry": ancestry, "source_version": version,
+                        "title": previous.get("title") or _line(session.first_user_message)[:140],
+                        "last_capture": now(), "filtered_archive": True}
                     data[session.id].pop("error", None)
+                    if job.get("incremental") and archive:
+                        parts = data[session.id].setdefault("archive_parts", [])
+                        if not any(part["archive"] == archive for part in parts):
+                            parts.append({"archive": archive, "start": offset, "end": version[1]})
                 store.update_sessions(project, record)
+                from .conversations import remember
+                for id in ids:
+                    name, item = store.get_item(project, id)
+                    remember(store, project, session.id, name, item)
                 summary = _summary(store, project, target, ids)
                 if status == "done":
                     store.update_local("state", lambda data: data.setdefault("capture_summaries", {}).setdefault(project, []).append(summary))
-                store.delete_pending(run_id)
-                return {"capture": status, "session_id": session.id, "items": ids, "summary": summary}
+                more = not store.finish_pending(run_id, generation, keep=bool(job.get("incremental") and session.version != version))
+                return {"capture": status, "session_id": session.id, "items": ids, "summary": summary, "more": more}
         except TimeoutError:
             return {"capture": "running", "run_id": run_id}
         except Exception as exc:
@@ -307,6 +366,35 @@ def process_job(store, run_id: str) -> dict:
             return {"capture": "failed", "run_id": run_id, "error": message}
     finally:
         lock.__exit__(None, None, None)
+
+
+def drain_job(store, run_id: str) -> dict:
+    """Coalesce checkpoints and retry failures a bounded number of times in a child."""
+    try:
+        with FileLock(store.path(".local", "workers", run_id), timeout=0):
+            def mark(job):
+                if not job:
+                    raise FileNotFoundError(run_id)
+                job["worker_pid"] = os.getpid()
+            store.update_pending(run_id, mark)
+            while True:
+                job = store.read_pending(run_id)
+                if not job:
+                    return {"capture": "done"}
+                delay = job.get("not_before", 0) - time.time()
+                if delay > 0:
+                    time.sleep(min(delay, 1))
+                    continue
+                result = process_job(store, run_id)
+                if result["capture"] == "failed":
+                    attempts = job.get("attempts", 0) + 1
+                    store.update_pending(run_id, lambda current: current.update({"attempts": attempts, "not_before": time.time() + 2 ** attempts}))
+                    if attempts >= 3:
+                        return result
+                elif result["capture"] in {"paused", "running"} or not store.read_pending(run_id):
+                    return result
+    except (TimeoutError, FileNotFoundError):
+        return {"capture": "running"}
 
 
 def start_background(store, run_id: str) -> subprocess.Popen:

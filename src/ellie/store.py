@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 import gzip
 import hashlib
 import json
@@ -128,7 +128,7 @@ class Store(Protocol):
     def move_memory(self, project: str, name: str, to_archive: bool) -> None: ...
     def read_sessions(self, project: str) -> dict: ...
     def write_sessions(self, project: str, data: dict) -> None: ...
-    def archive_transcript(self, project: str, src: Path, name: str, *, limit_bytes: int | None = None) -> str: ...
+    def archive_transcript(self, project: str, src: Path, name: str, *, limit_bytes: int | None = None, filter_private: bool = False, start_byte: int = 0) -> str: ...
     def update_memory(self, project: str, name: str, change: Callable[[Memory], T], *, agent: str = "you") -> T: ...
     def read_local(self, name: str) -> dict: ...
     def update_local(self, name: str, change: Callable[[dict], T]) -> T: ...
@@ -149,6 +149,7 @@ class Store(Protocol):
     def update_pending(self, run: str, change: Callable[[dict], T]) -> T: ...
     def list_pending(self) -> list[dict]: ...
     def delete_pending(self, run: str) -> None: ...
+    def finish_pending(self, run: str, generation: int = 0, *, keep: bool = False) -> bool: ...
     def update_sessions(self, project: str, change: Callable[[dict], T]) -> T: ...
     def ensure_resource(self, name: str, content: str) -> None: ...
     def read_resource(self, name: str, default: str = "") -> str: ...
@@ -218,6 +219,8 @@ class FileStore:
                 for project in self.list_projects() for memory in self.iter_memories(project)}
 
     def _notify(self, project: str, name: str) -> None:
+        saved = datetime.now(timezone.utc).isoformat(timespec="microseconds")
+        self.update_local("state", lambda data: data.setdefault("last_saved", {}).update({project: saved}))
         for listener in self._listeners:
             listener(project, name)
 
@@ -416,6 +419,19 @@ class FileStore:
         with FileLock(path):
             path.unlink(missing_ok=True)
 
+    def finish_pending(self, run: str, generation: int = 0, *, keep: bool = False) -> bool:
+        """A worker may acknowledge its generation, never a newer queued checkpoint."""
+        path = self.path(".local", "pending", validate_name(run) + ".json")
+        with FileLock(path):
+            job = self._read_json(path)
+            if keep or job.get("generation", 0) > generation:
+                if job:
+                    job.update({"capture": "pending", "error": None, "not_before": 0})
+                    _replace(path, lambda stream: stream.write((json.dumps(job, ensure_ascii=False, indent=2) + "\n").encode()))
+                return False
+            path.unlink(missing_ok=True)
+            return True
+
     def resolve_project(self, cwd: Path | str) -> tuple[str, Path]:
         return project_id(cwd, self.read_local("paths"))
 
@@ -462,14 +478,29 @@ class FileStore:
     def update_sessions(self, project: str, change: Callable[[dict], T]) -> T:
         return self._update_json(self.path("projects", validate_project(project), "sessions", "index.json"), change)
 
-    def archive_transcript(self, project: str, src: Path, name: str, *, limit_bytes: int | None = None) -> str:
+    def archive_transcript(self, project: str, src: Path, name: str, *, limit_bytes: int | None = None, filter_private: bool = False, start_byte: int = 0) -> str:
+        if start_byte < 0:
+            raise ValueError("transcript offset must not be negative")
         if not re.fullmatch(r"[a-zA-Z0-9_.-]+\.jsonl\.gz", name) or name.startswith("."):
             raise ValueError("invalid transcript archive name")
         dest = self.path("projects", validate_project(project), "sessions", name)
         with FileLock(dest):
             def copy(stream):
                 with Path(src).open("rb") as source, gzip.GzipFile(filename="", fileobj=stream, mode="wb", mtime=0) as zipped:
-                    if limit_bytes is None:
+                    source.seek(start_byte)
+                    if filter_private:
+                        from .privacy import filtered_line
+                        remaining = limit_bytes
+                        while remaining is None or remaining > 0:
+                            line = source.readline(-1 if remaining is None else remaining)
+                            if not line:
+                                if remaining:
+                                    raise ValueError("transcript prefix is incomplete")
+                                break
+                            zipped.write(filtered_line(line))
+                            if remaining is not None:
+                                remaining -= len(line)
+                    elif limit_bytes is None:
                         shutil.copyfileobj(source, zipped)
                     else:
                         remaining = limit_bytes

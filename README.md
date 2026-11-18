@@ -30,6 +30,11 @@ adds a marked instruction block, and creates editable extraction guidance.
 Existing files get a one-time `.ellie-backup` before modification. Reinstalling
 does not duplicate blocks or overwrite your extraction guidance.
 
+Installation also adds user-level lifecycle hooks for ordinary Codex and Claude
+sessions. Restart the agent after installing. In Codex, open `/hooks` and review
+and trust Ellie's commands; the installer does not bypass native hook trust.
+Older clients may need an update. `ellie doctor` checks registration and support.
+
 For Claude, the installer prints an optional permissions.allow setting. It
 does not grant blanket permissions automatically.
 
@@ -175,6 +180,24 @@ The launcher returns the agent's exit code.
 
 ## How capture works
 
+With hooks installed and capture set to `auto`, you can start plain `codex` or
+`claude`. SessionStart binds a separate workstream to each conversation and
+provides a compact memory index. Choose historical conversations through chat
+or the launcher. Include the hook's native session_id in each Ellie tool call.
+Loading a workstream changes only that conversation's binding.
+
+Tool events queue durable metadata; model calls run in a background worker.
+Checkpoints default to 120 seconds and flush when the agent finishes a turn,
+before compaction, or when the session ends. A checkpoint reviews only new
+complete transcript records through a fresh ephemeral CLI run. Large sessions
+are processed in batches; gzip parts record their source byte ranges. Jobs
+queued during extraction remain pending for the next batch. Automatic workers
+attempt a failed job at most three times, then retain it for explicit retry.
+Capture set to `ask` keeps the launcher's exit prompt; hooks do not launch models
+in that mode. `--no-capture` on the launcher also disables hook extraction.
+
+The launcher's final review and manual capture/backfill use this pipeline:
+
 1. The launcher records a pending run outside the repo. Claude gets a UUID
    up front; Codex is matched after exit using cwd, time, and a before/after
    transcript snapshot. An ambiguous match stays pending.
@@ -183,8 +206,9 @@ The launcher returns the agent's exit code.
    the file; tool results, injected context, and subagents are excluded.
 3. Available JSONL is gzip-archived. Codex parent-history prefixes are archived
    at their recorded byte boundaries and linked in the session registry.
-   The raw archives preserve what the upstream CLI recorded, including any
-   existing secrets; item writes separately redact common credential patterns.
+   New Ellie-owned archives filter private blocks and common credential
+   patterns. Safe unchanged records preserve their original bytes. Existing
+   archives and the upstream agent's session files are not modified.
 4. A headless fork reviews the original conversation. Codex runs ephemeral,
    read-only, with no approval escalation, shell, hooks, plugins, apps, or
    configured MCP servers. Claude uses a nonpersistent fork, safe mode, no
@@ -201,13 +225,38 @@ Native extraction uses the source agent's saved conversation. An explicit
 `extract_with` override starts a fresh ephemeral run with archived transcript
 context, capped at 2000000 characters. Native session IDs cannot cross agents.
 
-Plain `codex`/`claude` sessions are discovered by status/capture but do not have
-automatic exit hooks in v1. Use `ellie capture` or `ellie backfill`. Resumed
-sessions become uncaptured again when their source file changes. Sessions with
-fewer than two user messages are archived and marked skipped without a model call.
+Without active/trusted hooks, use `ellie capture` or `ellie backfill` for ordinary
+sessions. Resumed sessions become uncaptured again when their source changes.
+Manual captures with fewer than two human prompts are archived and skipped;
+hook checkpoints can capture useful work from a single prompt. Filtered private
+history uses fresh extraction rather than a native resume of unfiltered content.
 
 Upstream transcript truncation cannot be undone. Missing Codex parent history
 or partially written JSONL is reported; the job remains available for retry.
+A single JSONL record over 1000000 bytes also stays pending with a clear error;
+it is not silently skipped.
+
+## Privacy and save status
+
+```sh
+ellie privacy                  # current project's controls
+ellie privacy pause            # stop future automatic capture and agent writes
+ellie privacy resume
+ellie privacy exclude CONVERSATION_ID
+ellie privacy include CONVERSATION_ID
+ellie privacy --archives off    # future captures retain extracted memory only
+ellie privacy --archives filtered
+ellie status                   # last saved time, pending work, failures
+ellie capture --wait            # explicitly retry pending captures
+```
+
+Wrap private text in `<private>...</private>` within a prompt or tool text. Ellie
+filters it from future memory, historical snapshots, owned archives and fresh
+extraction input. Nested blocks and unclosed blocks are filtered conservatively.
+These controls do not delete old data, scrub existing archives, or alter the
+agent's own transcript. Pause/exclusion do not erase already queued work; resume
+or include the conversation before retrying it. Explicit file editing remains
+available while automatic saving is paused.
 
 ## Storage and editing
 
@@ -228,7 +277,8 @@ SSH/HTTPS remotes for the same repo map to one lowercase project ID. Subfolders,
 clones, and worktrees share it. Without a remote, the ID is `local/<folder>`;
 use `ellie link` to correct associations when necessary.
 
-Shared memory is always loaded. Workstreams contain Goal, Current state,
+Shared memory is loaded in ordinary workstream mode; explicit conversation-only
+selection excludes unrelated shared content. Workstreams contain Goal, Current state,
 Next steps, Decisions, Results, Findings, Open questions, Notes, and Log.
 IDs such as D7 are unique across the project's active and archived memories.
 Superseded decisions remain in the files and are hidden from ordinary recall.
@@ -251,6 +301,7 @@ does not edit project repositories or write project instruction files there.
 | `briefing_max_chars` | `24000` |
 | `brief_preselect` | `12` |
 | `backfill_default_since` | `30d` |
+| `checkpoint_interval_sec` | `120` |
 
 ```sh
 ellie config capture ask

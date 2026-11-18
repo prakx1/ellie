@@ -100,6 +100,7 @@ def start(service, options, agent_args: list[str]) -> int:
               "started": datetime.now().astimezone().isoformat(), "memories": selection.memories,
               "session_id": session_id, "capture": "pending"}
     record["context_conversations"] = selection.conversations
+    record["capture_disabled"] = options.no_capture or service.config["capture"] != "auto"
     from .capture import snapshot_sessions
     record["before_sessions"] = snapshot_sessions(agent)
     service.store.write_pending(run_id, record)

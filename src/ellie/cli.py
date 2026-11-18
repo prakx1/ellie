@@ -60,6 +60,10 @@ def parser() -> argparse.ArgumentParser:
     timeline = commands.add_parser("timeline", help="Show items around a historical ID")
     timeline.add_argument("anchor", nargs="?")
     timeline.add_argument("--conversation", dest="conversations", action="append")
+    privacy = commands.add_parser("privacy", help="Pause saving or exclude a conversation from future capture")
+    privacy.add_argument("action", nargs="?", default="status", choices=["status", "pause", "resume", "exclude", "include"])
+    privacy.add_argument("conversation", nargs="?")
+    privacy.add_argument("--archives", choices=["filtered", "off"])
     show = commands.add_parser("show")
     show.add_argument("name", nargs="?", default="project")
     new = commands.add_parser("new")
@@ -96,6 +100,11 @@ def parser() -> argparse.ArgumentParser:
     capture.add_argument("--dry-run", action="store_true")
     worker = commands.add_parser("_capture", help=argparse.SUPPRESS)
     worker.add_argument("run_id")
+    hook = commands.add_parser("hook", help="Handle agent lifecycle events (normally installed automatically)")
+    hook.add_argument("agent", choices=["codex", "claude"])
+    hook.add_argument("event")
+    hook.add_argument("--no-worker", action="store_true", help=argparse.SUPPRESS)
+    hook.add_argument("--ellie-managed", action="store_true", help=argparse.SUPPRESS)
     history = commands.add_parser("backfill", help="Capture historical sessions after confirmation")
     history.add_argument("--since")
     history.add_argument("--limit", type=int)
@@ -127,8 +136,8 @@ def set_config(service, key, value):
 def dispatch(service, options, agent_args):
     command = options.command or "status"
     if command == "_capture":
-        from .capture import process_job
-        result = process_job(service.store, options.run_id)
+        from .capture import drain_job
+        result = drain_job(service.store, options.run_id)
         print(json.dumps(result, ensure_ascii=False))
         return int(result["capture"] == "failed")
     if command == "start":
@@ -168,6 +177,10 @@ def dispatch(service, options, agent_args):
             print("No workstreams yet. Create one with ellie new NAME.")
         print(f"{status['archived_count']} archived memories")
         print(f"{status['uncaptured_sessions']} uncaptured sessions" + (" — run ellie capture" if status["uncaptured_sessions"] else ""))
+        health = status["capture_health"]
+        print(f"Last saved: {health['last_saved'] or 'never'} · {health['pending']} pending · {health['failed']} failed" + (" · PAUSED" if health['paused'] else ""))
+    elif command == "privacy":
+        print(json.dumps(service.privacy(project, options.action, options.conversation, options.archives), indent=2))
     elif command == "conversations":
         data = service.conversations(project)
         if options.json:
@@ -261,12 +274,19 @@ def main(argv: list[str] | None = None) -> int:
         if options.command == "mcp":
             from .mcp_server import main as mcp
             return mcp()
+        if options.command == "hook":
+            from .hooks import handle
+            from .store import FileStore
+            payload = json.loads(sys.stdin.read(2_000_001))
+            print(json.dumps(handle(FileStore(), options.agent, options.event, payload, start_worker=not options.no_worker), ensure_ascii=False))
+            return 0
         if options.command == "install":
             from .install import install
             installed = install(codex=options.codex, claude=options.claude)
             print("Installed Ellie for " + ", ".join(installed))
             if "Claude Code" in installed:
                 print('Tip: add "mcp__ellie" to permissions.allow in Claude settings to skip approval prompts.')
+            print("Lifecycle hooks registered. Restart your agent; review and trust Ellie in Codex /hooks.")
             return 0
         if options.command == "uninstall":
             from .install import uninstall

@@ -73,6 +73,19 @@ def diagnose(store) -> list[Check]:
         except OSError:
             instructions = False
         checks.append(Check(agent + " instructions", instructions, "Instruction block present" if instructions else "Instruction block missing", f"Run ellie install --{agent}."))
+        hook_path = codex_home() / "hooks.json" if agent == "codex" else claude_home() / "settings.json"
+        try:
+            hooks = json.loads(read_text(hook_path) or "{}").get("hooks", {})
+            registered_hooks = all(any(" -m ellie hook " in handler.get("command", "")
+                                      for group in hooks.get(event, []) for handler in group.get("hooks", []))
+                                   for event in ("SessionStart", "Stop", "SessionEnd"))
+        except (ValueError, OSError, TypeError, AttributeError):
+            registered_hooks = False
+        checks.append(Check(agent + " hooks", registered_hooks, "Ellie lifecycle commands registered" if registered_hooks else "Automatic capture hooks missing", f"Run ellie install --{agent}; review hooks in the agent."))
+        if agent == "codex" and registered_hooks:
+            good, features = probe([executable, "features", "list"])
+            supported = good and any(line.split()[:1] == ["hooks"] and line.split()[-1:] == ["true"] for line in features.splitlines())
+            checks.append(Check("codex hook support", True if supported else None, "Hooks enabled" if supported else "Could not verify hook support", "Update Codex if needed; review and trust Ellie with /hooks. Config alone does not prove hook trust."))
         found = adapter(agent).discover()
         checks.append(Check(agent + " sessions", not found.problems, f"{len(found.sessions)} readable sessions" if not found.problems else "; ".join(found.problems), "Inspect the reported files; update the CLI/adapter if its session format changed."))
     connection = sqlite3.connect(":memory:")

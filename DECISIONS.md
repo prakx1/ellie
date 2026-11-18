@@ -19,6 +19,31 @@
   selected conversation. Dedupe retains each contributing conversation. Legacy
   source fields/registries are supported, but missing old versions cannot be
   reconstructed retroactively and are labelled as such.
+- Hooks persist metadata and a coalescing job before returning; model work runs
+  in a separate CLI child. Checkpoints default to 120 seconds and flush on Stop,
+  PreCompact, Interrupt (Codex), and SessionEnd. Worker/source locks, generation
+  acknowledgements, and byte cursors protect parallel and resumed sessions.
+- Incremental extraction uses fresh ephemeral CLI runs over filtered new source
+  records plus only the bound historical context, avoiding reprocessing the full
+  transcript. Records are paged at complete JSONL boundaries, with immutable
+  gzip parts whose byte ranges reconstruct the captured session (before privacy
+  filtering). Parent prefixes remain separately archived. A single oversized
+  record fails clearly and leaves its job pending rather than silently dropping
+  it. Hook checkpoints can capture useful work after one human prompt; manual
+  v1 backfill retains its fewer-than-two-prompts skip rule.
+- Private blocks (including nested/unclosed blocks) are removed from future
+  Ellie content and owned archive text before persistence/model invocation.
+  New capture archives also redact common credential patterns. Unchanged safe
+  records retain their exact bytes. The upstream agent transcript and old raw
+  archives remain untouched. Filtered manual captures use a fresh CLI instead
+  of resuming private source history. Pause/exclude retain existing data and
+  pending jobs; they stop future capture and agent writes. Archive mode can be
+  filtered or off, with filtered as the new default.
+- User-level Codex hooks.json and Claude settings.json are changed narrowly and
+  backed up; repo-local hooks are never written. Commands use a quoted absolute
+  interpreter. Uninstall removes only exact Ellie-owned handlers. Codex hooks
+  were stable/enabled in the installed CLI under a temporary profile; native
+  trust review remains the user's choice, never bypassed by the installer.
 
 ## Step 0 compatibility decisions (approved 2026-11-18)
 

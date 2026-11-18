@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import shlex
 import subprocess
 import sys
 
@@ -20,6 +21,10 @@ INSTRUCTIONS = """## Project memory (ellie)
 A `ellie` MCP server holds this repo's long-term memory: goals, decisions, results, findings,
 open questions, shared across sessions and agents (Codex and Claude Code).
 - If the conversation starts with a `[ellie session]` block, that memory is loaded.
+- A `[ellie conversation]` hook block gives the current native session_id: include
+  it in every Ellie call. Use bind/load for this conversation's write workstreams.
+- Use conversations to list sources. To use only selected chats, call load with
+  conversations=[IDs]; [] means no past chats. Never widen a selection unasked.
 - Otherwise, at the start of work in a repo, call ellie `status` with cwd=<repo path>. If memories
   exist, ask me which to load (or none / new), then call `load`.
 - Before choosing an approach, call `recall` to check what was decided, tried or learned before.
@@ -209,6 +214,58 @@ def run_cli(name: str, *args: str) -> bool:
         return False
 
 
+def hook_config(text: str, agent: str, *, remove: bool = False) -> str:
+    """Own only commands carrying our exact CLI suffix; preserve other handlers."""
+    from .hooks import EVENTS
+    data = json.loads(text) if text.strip() else {}
+    if not isinstance(data, dict) or not isinstance(data.get("hooks", {}), dict):
+        raise ValueError("hook configuration and hooks must be JSON objects")
+    original = json.loads(json.dumps(data))
+    hooks = data.setdefault("hooks", {})
+    for event, groups in list(hooks.items()):
+        if not isinstance(groups, list):
+            raise ValueError("hook event handlers must be lists")
+        kept = []
+        for group in groups:
+            if not isinstance(group, dict) or not isinstance(group.get("hooks", []), list):
+                raise ValueError("invalid hook matcher group")
+            handlers = []
+            for handler in group.get("hooks", []):
+                command = handler.get("command", "") if isinstance(handler, dict) else ""
+                owned = isinstance(command, str) and any(command.endswith(f" -m ellie hook {name} {event} --ellie-managed") for name in ("codex", "claude"))
+                if not owned:
+                    handlers.append(handler)
+            if handlers or not group.get("hooks"):
+                kept.append({**group, "hooks": handlers})
+        if kept:
+            hooks[event] = kept
+        else:
+            del hooks[event]
+    if not remove:
+        events = [*EVENTS, "PostToolUseFailure" if agent == "claude" else "Interrupt"]
+        for event in events:
+            args = [os.path.abspath(sys.executable), "-m", "ellie", "hook", agent, event, "--ellie-managed"]
+            command = subprocess.list2cmdline(args) if os.name == "nt" else shlex.join(args)
+            hooks.setdefault(event, []).append({"hooks": [{"type": "command", "command": command, "timeout": 3 if event == "SessionEnd" else 10}]})
+    if not hooks:
+        data.pop("hooks", None)
+    return text if data == original else json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+
+
+def configure_hooks(path: Path, agent: str, *, remove=False):
+    def change(text):
+        updated = hook_config(text, agent, remove=remove)
+        prior = Path(str(path) + ".ellie-backup")
+        if remove and prior.exists():
+            previous = read_text(prior)
+            if json.loads(previous or "{}") == json.loads(updated or "{}"):
+                return previous
+        if remove and json.loads(updated or "{}") == {} and not prior.exists():
+            return ""
+        return updated
+    modify(path, change, remove_empty=remove)
+
+
 def install(*, codex: bool = False, claude: bool = False, store: FileStore | None = None) -> list[str]:
     store = store if store is not None else FileStore()
     if not codex and not claude:
@@ -221,6 +278,7 @@ def install(*, codex: bool = False, claude: bool = False, store: FileStore | Non
         run_cli("codex", "mcp", "add", "ellie", "--", os.path.abspath(sys.executable), "-m", "ellie", "mcp")
         modify(config, upsert_codex)
         modify(codex_home() / "AGENTS.md", upsert_instructions)
+        configure_hooks(codex_home() / "hooks.json", "codex")
         installed.append("Codex")
     if claude:
         config = guarded(claude_config())
@@ -238,12 +296,16 @@ def install(*, codex: bool = False, claude: bool = False, store: FileStore | Non
             return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
         modify(config, add)
         modify(claude_home() / "CLAUDE.md", upsert_instructions)
+        configure_hooks(claude_home() / "settings.json", "claude")
         installed.append("Claude Code")
     store.ensure_resource("extraction.md", files("ellie").joinpath("resources/extraction.md").read_text(encoding="utf-8"))
     return installed
 
 
 def uninstall() -> None:
+    for path, agent in ((codex_home() / "hooks.json", "codex"), (claude_home() / "settings.json", "claude")):
+        if path.exists():
+            configure_hooks(path, agent, remove=True)
     config = guarded(codex_home() / "config.toml")
     backup(config)
     run_cli("codex", "mcp", "remove", "ellie")

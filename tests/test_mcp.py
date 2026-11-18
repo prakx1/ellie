@@ -52,7 +52,7 @@ class MCPTests(IsolatedTest):
         by_id = {response["id"]: response for response in responses}
         self.assertEqual(by_id[1]["result"]["protocolVersion"], "2025-06-18")
         tools = by_id[2]["result"]["tools"]
-        self.assertEqual(len(tools), 17)
+        self.assertEqual(len(tools), 18)
         self.assertTrue(all(tool["description"] for tool in tools))
         for response in responses:
             self.assertNotIn("error", response)

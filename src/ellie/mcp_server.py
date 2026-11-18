@@ -23,6 +23,7 @@ def tool(name, description, properties, required):
 
 
 TOOLS = [
+    tool("privacy", "When asked, pause/resume saving, exclude/include a conversation, or disable Ellie-owned archives; status is read-only.", {"action": {"type": "string", "enum": ["status", "pause", "resume", "exclude", "include"]}, "conversation": TEXT, "archives": {"type": "string", "enum": ["filtered", "off"]}}, []),
     tool("conversations", "Before selecting context, list this project's conversations, titles, source item IDs and capture status.", {}, []),
     tool("bind", "Bind the current session_id to write workstreams and optional source conversations; [] means no past conversations.", {"memories": TEXTS, "conversations": TEXTS}, ["session_id", "memories"]),
     tool("timeline", "After recall, inspect nearby items around an anchor ID or query, limited to selected conversations.", {"anchor": TEXT, "query": TEXT, "before": {"type": "integer", "minimum": 0, "maximum": 25}, "after": {"type": "integer", "minimum": 0, "maximum": 25}, "conversations": TEXTS}, []),

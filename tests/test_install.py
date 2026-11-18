@@ -28,6 +28,24 @@ NOTE = "Keep this user value"
 
 
 class InstallTests(IsolatedTest):
+    def test_hooks_are_idempotent_and_remove_only_ellie_handlers(self):
+        other = {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "keep-other-hook"}]}]}}
+        codex = codex_home() / "hooks.json"
+        settings = claude_home() / "settings.json"
+        codex.write_text(json.dumps(other))
+        settings.write_text(json.dumps({**other, "permissions": {"allow": ["Read"]}}))
+        before = {path: path.read_bytes() for path in (codex, settings)}
+        with patch("ellie.install.run_cli", return_value=False):
+            install(codex=True, claude=True, store=self.store)
+            first = {path: path.read_bytes() for path in (codex, settings)}
+            install(codex=True, claude=True, store=self.store)
+            self.assertEqual(first, {path: path.read_bytes() for path in (codex, settings)})
+            self.assertIn("SessionStart", json.loads(codex.read_text())["hooks"])
+            self.assertIn("PostToolUseFailure", json.loads(settings.read_text())["hooks"])
+            self.assertEqual(json.loads(settings.read_text())["permissions"], {"allow": ["Read"]})
+            uninstall()
+        self.assertEqual(before, {path: path.read_bytes() for path in (codex, settings)})
+
     def seed(self):
         (codex_home() / "config.toml").write_text(OTHER_CONFIG)
         (codex_home() / "AGENTS.md").write_text("User Codex instructions\n")
@@ -115,7 +133,9 @@ EXAMPLE = "value"
         with patch("ellie.install.run_cli", return_value=False) as cli:
             self.assertEqual(install(store=self.store), ["Codex", "Claude Code"])
         self.assertTrue(any(call.args[:4] == ("claude", "mcp", "add", "--scope") for call in cli.call_args_list))
-        self.assertFalse((claude_home() / "settings.json").exists())
+        settings = json.loads((claude_home() / "settings.json").read_text())
+        self.assertIn("SessionStart", settings["hooks"])
+        self.assertNotIn("permissions", settings)
 
     def test_instruction_without_final_newline_is_restored_exactly(self):
         path = codex_home() / "AGENTS.md"
