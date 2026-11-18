@@ -176,3 +176,18 @@ class CLITests(IsolatedTest):
         self.assertIn("Indexed 1 items", self.cli("reindex").stdout)
         self.assertIn("Redis counters", self.cli("recall", "redis").stdout)
         self.assertEqual({memory.name: memory.to_bytes() for memory in self.store.iter_memories(self.project)}, before)
+
+    def test_start_and_search_select_only_one_conversation(self):
+        self.memory()
+        self.store.add_item(self.project, "work", "N", "Alpha design", {}, body="Alpha history", session="chat-a")
+        self.store.add_item(self.project, "work", "N", "Beta design", {}, body="Beta history", session="chat-b")
+        prompt = self.cli("start", "--from-conversation", "chat-a", "-m", "work", "--dry-run").stdout
+        self.assertIn("Alpha history", prompt)
+        self.assertNotIn("Beta history", prompt)
+        self.assertNotIn("project memory always loaded", prompt)
+        hits = self.cli("recall", "design", "--conversation", "chat-a").stdout
+        self.assertIn("Alpha design", hits)
+        self.assertNotIn("Beta design", hits)
+        records = json.loads(self.cli("conversations", "--json").stdout)["conversations"]
+        self.assertEqual({record["id"] for record in records}, {"chat-a", "chat-b"})
+        self.cli("start", "--from-conversation", "missing", "--dry-run", expected=1)

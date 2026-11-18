@@ -149,13 +149,32 @@ class Index:
         self.sync()
         return self.db.execute("SELECT count(*) FROM items").fetchone()[0]
 
-    def recall(self, query: str, *, project: str | None = None, types: list[str] | None = None, limit: int = 10, include_superseded: bool = False, all_projects: bool = False) -> list[SearchHit]:
+    def recall(self, query: str, *, project: str | None = None, types: list[str] | None = None, limit: int = 10, include_superseded: bool = False, all_projects: bool = False, conversations: list[str] | None = None) -> list[SearchHit]:
         if not isinstance(query, str):
             raise ValueError("query must be text")
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 1000:
             raise ValueError("limit must be between 1 and 1000")
         if types is not None and (not isinstance(types, list) or any(t not in {"D", "R", "F", "Q", "N"} for t in types)):
             raise ValueError("types must be a list containing D, R, F, Q, or N")
+        if conversations is not None:
+            if not project or all_projects:
+                raise ValueError("conversation selection requires one project")
+            from .conversations import selected_items
+            tokens = list(dict.fromkeys(re.findall(r"\w+", query.casefold())))
+            hits = []
+            for name, item in selected_items(self.store, project, conversations):
+                fields = item.fields
+                status, outcome = fields.get("status", ""), fields.get("outcome", "")
+                if types and item.type not in types:
+                    continue
+                if not include_superseded and (status.startswith("superseded") or status == "reverted"):
+                    continue
+                relevance = sum(item.title.casefold().count(t) * 5 + item.raw.casefold().count(t) for t in tokens)
+                if relevance:
+                    score = relevance * recency(fields.get("date", "")) * type_weight(item.type, status, outcome)
+                    hits.append(SearchHit(project, name, item.id, item.type, item.title, fields.get("date", ""), status,
+                                          outcome, fields.get("scope", ""), " ".join(item.raw.split())[:240], score))
+            return sorted(hits, key=lambda hit: (-hit.score, hit.id))[:limit]
         self.sync()
         tokens = list(dict.fromkeys(re.findall(r"\w+", query.casefold())))
         if not tokens:

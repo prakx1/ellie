@@ -10,7 +10,7 @@ import subprocess
 import sys
 import uuid
 
-from .briefing import Selection, pick_memories, render_briefing, select_history
+from .briefing import Selection, pick_conversations, pick_memories, render_briefing, select_history
 from .model import Memory
 from .paths import validate_name
 
@@ -28,16 +28,27 @@ def startup_prompt(service, project: str, selection: Selection) -> str:
     if len(context) > service.config["briefing_max_chars"]:
         context = ("The selected context exceeds the inline briefing budget. Call ellie load with memories="
                    + repr(selection.memories) + " (project memory always loads).")
+        if selection.conversations is not None:
+            context += " Include conversations=" + repr(selection.conversations) + "; do not load unselected history."
         if selection.ids:
             context += " Then call ellie get with ids=" + repr(selection.ids) + "."
+    scope = "project memory always loaded" if selection.conversations is None else "only selected conversations loaded; other project history excluded"
     return (f"[ellie session]\nproject: {project}\nmemories: {', '.join(selection.memories) or '(none)'}"
-            f"   (project memory always loaded)\n\n{context}\n\n---\n{USAGE}")
+            f"   ({scope})\n\n{context}\n\n---\n{USAGE}")
 
 
 def start(service, options, agent_args: list[str]) -> int:
     project = service.project()
     agent = options.agent or service.config["agent"]
     selection = Selection(options.memory or [])
+    sources = getattr(options, "conversations", None)
+    if getattr(options, "pick_conversations", False):
+        sources = pick_conversations(service, project)
+        if sources is None:
+            return 0
+    if sources is not None:
+        from .conversations import selected_items
+        selected_items(service.store, project, sources)
     if options.new:
         validate_name(options.new, allow_project=False)
         if options.dry_run:
@@ -54,8 +65,10 @@ def start(service, options, agent_args: list[str]) -> int:
             status = service.status(project)
             active = {meta["name"] for meta in status["memories"]}
             selection.memories = [name for name in status["last_used"] if name in active]
+    if sources is not None:
+        selection.conversations = sources
     if options.about:
-        history = select_history(service, project, options.about)
+        history = select_history(service, project, options.about, conversations=selection.conversations)
         selection.memories = list(dict.fromkeys([*selection.memories, *history.memories]))
         selection.ids.extend(history.ids)
     selection.ids.extend(options.with_ids or [])
@@ -86,6 +99,7 @@ def start(service, options, agent_args: list[str]) -> int:
     record = {"run_id": run_id, "project": project, "agent": agent, "cwd": str(Path.cwd()),
               "started": datetime.now().astimezone().isoformat(), "memories": selection.memories,
               "session_id": session_id, "capture": "pending"}
+    record["context_conversations"] = selection.conversations
     from .capture import snapshot_sessions
     record["before_sessions"] = snapshot_sessions(agent)
     service.store.write_pending(run_id, record)

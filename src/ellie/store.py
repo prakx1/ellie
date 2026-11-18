@@ -531,6 +531,9 @@ class FileStore:
                 if old_id == duplicate:
                     raise ValueError("a decision cannot supersede itself")
                 old_decisions[old_id] = old_name
+            from .conversations import preserve_before_change, remember
+            for old_id, old_name in old_decisions.items():
+                preserve_before_change(self, project, old_name, self.get_item(project, old_id)[1])
             if duplicate:
                 # Repair an interrupted cross-file supersede even on a retry.
                 for old_id, old_name in old_decisions.items():
@@ -542,6 +545,9 @@ class FileStore:
                         with FileLock(self.memory_path(project, old_name)):
                             self._persist(self.memory_path(project, old_name), old_memory)
                         self._notify(project, old_name)
+                remember(self, project, session, memory, self.get_item(project, duplicate)[1])
+                for old_id, old_name in old_decisions.items():
+                    remember(self, project, session, old_name, self.get_item(project, old_id)[1])
                 return duplicate
             prepared = {"date": datetime.now().astimezone().date().isoformat(), "source": f"{agent} · {source}" + (f" · session {session}" if session else ""), **fields}
             if supersedes:
@@ -567,6 +573,9 @@ class FileStore:
                         raise ConcurrentUpdateError("memory changed during item creation")
                     self._persist(path, changed_memory)
                 self._notify(project, name)
+            remember(self, project, session, memory, self.get_item(project, id)[1])
+            for old_id, old_name in old_decisions.items():
+                remember(self, project, session, old_name, self.get_item(project, old_id)[1])
             return id
 
     @staticmethod
@@ -587,6 +596,8 @@ class FileStore:
             name, item = self.get_item(project, id)
             if item.type != "Q":
                 raise ValueError("only questions can be resolved")
+            from .conversations import preserve_before_change, remember
+            preserve_before_change(self, project, name, item)
             path = self.memory_path(project, name)
             with FileLock(path):
                 memory = self.read_memory(project, name)
@@ -599,3 +610,4 @@ class FileStore:
                 memory.set_meta("updated_by", agent)
                 self._persist(path, memory)
             self._notify(project, name)
+            remember(self, project, session, name, self.get_item(project, id)[1])

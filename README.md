@@ -97,6 +97,29 @@ After updating this checkout, upgrade an existing tool installation with
 
 ## Selecting context
 
+To reuse knowledge from specific conversations in the same project:
+
+```sh
+ellie conversations
+ellie start codex --from-conversation CONVERSATION_ID --new next-task
+ellie start claude --pick-conversations
+ellie recall 'refresh' --conversation CONVERSATION_ID
+ellie brief 'add retries' --conversation CONVERSATION_ID --json
+ellie timeline R4 --conversation CONVERSATION_ID
+```
+
+Repeat `--from-conversation` to combine selected sources. Choosing a conversation
+excludes all other conversation history, unattributed items, and global summary
+sections. A workstream remains the destination for new work; it can receive
+items from multiple conversations. Older conversations may lack historical
+versions; new saves retain snapshots so later edits in another conversation do
+not change the earlier conversation's view.
+
+In chat, ask: “Use only conversation ID for context, create/load workstream NAME,
+and bind this session to it.” The agent uses `conversations`, `bind`, and `load`.
+Include the current `session_id` in every MCP call so parallel chats keep their
+bindings. `recall`, `get`, and `timeline` retain a bound conversation restriction.
+
 `ellie start` offers a numbered memory picker. Enter uses the starred last
 selection, `0` loads only shared memory, `n` creates a workstream, and `/`
 searches history. With non-interactive stdin it uses valid last-used memories.

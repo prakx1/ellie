@@ -18,15 +18,18 @@ BOOL = {"type": "boolean"}
 
 def tool(name, description, properties, required):
     return {"name": name, "description": description,
-            "inputSchema": {"type": "object", "properties": {**properties, "project": TEXT, "cwd": TEXT},
+            "inputSchema": {"type": "object", "properties": {**properties, "project": TEXT, "cwd": TEXT, "session_id": TEXT},
                             "required": required, "additionalProperties": False}}
 
 
 TOOLS = [
+    tool("conversations", "Before selecting context, list this project's conversations, titles, source item IDs and capture status.", {}, []),
+    tool("bind", "Bind the current session_id to write workstreams and optional source conversations; [] means no past conversations.", {"memories": TEXTS, "conversations": TEXTS}, ["session_id", "memories"]),
+    tool("timeline", "After recall, inspect nearby items around an anchor ID or query, limited to selected conversations.", {"anchor": TEXT, "query": TEXT, "before": {"type": "integer", "minimum": 0, "maximum": 25}, "after": {"type": "integer", "minimum": 0, "maximum": 25}, "conversations": TEXTS}, []),
     tool("status", "Use at the start of work to discover this project's memories and uncaptured sessions.", {}, []),
-    tool("load", "Load shared project context and chosen workstreams before continuing work; records the selection.", {"memories": TEXTS}, ["memories"]),
-    tool("get", "Read full historical items when recall finds something relevant. IDs may include a project-id prefix.", {"ids": TEXTS}, ["ids"]),
-    tool("recall", "Before choosing an approach, search past decisions, failed attempts and findings to avoid repeating mistakes.", {"query": TEXT, "types": TEXTS, "limit": {"type": "integer", "minimum": 1, "maximum": 1000}, "include_superseded": BOOL, "all_projects": BOOL}, ["query"]),
+    tool("load", "Before work, load workstreams or only selected source conversations; preserves the session's context restriction.", {"memories": TEXTS, "conversations": TEXTS}, ["memories"]),
+    tool("get", "After recall, fetch full items by ID. Conversation restrictions also apply to full-item reads.", {"ids": TEXTS, "conversations": TEXTS}, ["ids"]),
+    tool("recall", "Before choosing an approach, search past decisions, failures and findings within the selected conversation context.", {"query": TEXT, "types": TEXTS, "limit": {"type": "integer", "minimum": 1, "maximum": 1000}, "include_superseded": BOOL, "all_projects": BOOL, "conversations": TEXTS}, ["query"]),
     tool("create", "Create a named workstream when starting a distinct feature, fix or investigation.", {"name": TEXT, "description": TEXT, "goal": TEXT, "done_when": TEXT}, ["name", "description"]),
     tool("set_goal", "Set or revise a workstream's goal and explicit completion criteria when its purpose changes.", {"memory": TEXT, "goal": TEXT, "done_when": TEXT}, ["memory", "goal", "done_when"]),
     tool("decide", "Record a consequential choice as it happens, including alternatives, tradeoff and why. Supersede earlier decisions explicitly.", {"memory": TEXT, "title": TEXT, "options": TEXTS, "chosen": TEXT, "tradeoff": TEXT, "why": TEXT, "supersedes": TEXTS, "refs": TEXTS}, ["memory", "title", "options", "chosen", "tradeoff", "why"]),
@@ -95,8 +98,10 @@ class Server:
             arguments = params.get("arguments", {})
             validate(arguments, self.tools[name]["inputSchema"])
             arguments = dict(arguments)
+            session_id = arguments.pop("session_id", None)
             project = self.service.project(arguments.pop("project", None), arguments.pop("cwd", None))
-            value = getattr(self.service, name)(project, **arguments)
+            with self.service.in_session(session_id):
+                value = getattr(self.service, name)(project, **arguments)
             return {"content": [{"type": "text", "text": json.dumps(value, ensure_ascii=False)}], "structuredContent": value, "isError": False}
         except Exception as exc:
             return {"content": [{"type": "text", "text": redact(str(exc))}], "isError": True}

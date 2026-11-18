@@ -1,5 +1,25 @@
 # Decisions
 
+## Conversation selection and automatic capture (approved 2026-11-19)
+
+- The user approved automatic hooks, incremental capture, startup context,
+  timeline retrieval, visible capture health, and privacy controls, then added
+  project-scoped conversation selection at item granularity. This extends the
+  original v1 spec; its text remains unchanged.
+- A workstream is a write destination. A conversation is a source of knowledge.
+  They are separate concepts: one workstream can contain many conversations,
+  and a repo-wide finding can retain its originating conversation in project.md.
+- Explicit source selection is strict. Load, recall, get, timeline, startup,
+  and dashboard views exclude unselected and unattributed content, including
+  the latest global summary sections. Per-session bindings keep parallel chats
+  separate and add only the current conversation's own new work to its context.
+- sessions/index.json keeps item provenance and historical item/summary
+  snapshots through Store. Markdown remains the current document; historical
+  snapshots prevent later resolutions or supersedes leaking into an older
+  selected conversation. Dedupe retains each contributing conversation. Legacy
+  source fields/registries are supported, but missing old versions cannot be
+  reconstructed retroactively and are labelled as such.
+
 ## Step 0 compatibility decisions (approved 2026-11-18)
 
 The user approved proceeding after Step 0. `spec.md` remains unchanged.

@@ -38,9 +38,17 @@ class Selection:
     memories: list[str] = field(default_factory=list)
     ids: list[str] = field(default_factory=list)
     drafts: dict[str, Memory] = field(default_factory=dict)
+    conversations: list[str] | None = None
 
 
 def render_briefing(service, project: str, selection: Selection) -> str:
+    if selection.conversations is not None:
+        from .conversations import render_selected
+        context = render_selected(service.store, project, selection.conversations)
+        if selection.ids:
+            selected = service.get(project, selection.ids, conversations=selection.conversations)["items"]
+            context += "\n\n## Explicit selections\n" + "\n\n".join(item["text"] for item in selected)
+        return context
     parts = []
     for name in dict.fromkeys(["project", *selection.memories]):
         if name in selection.drafts:
@@ -60,12 +68,12 @@ def render_briefing(service, project: str, selection: Selection) -> str:
     return "\n\n".join(parts)
 
 
-def select_history(service, project: str, query: str, *, interactive: bool | None = None, input_fn=None, output=None) -> Selection:
+def select_history(service, project: str, query: str, *, interactive: bool | None = None, input_fn=None, output=None, conversations=None) -> Selection:
     input_fn = input_fn or input
     output = output or sys.stdout
     if interactive is None:
         interactive = sys.stdin.isatty()
-    hits = service.index.recall(query, project=project, limit=20)
+    hits = service.index.recall(query, project=project, limit=20, conversations=conversations)
     selected = set()
     selected_memories = set()
     used = 0
@@ -94,7 +102,7 @@ def select_history(service, project: str, query: str, *, interactive: bool | Non
         if command == "q":
             return Selection()
         if command.startswith("a "):
-            more = service.index.recall(command[2:], project=project, limit=20)
+            more = service.index.recall(command[2:], project=project, limit=20, conversations=conversations)
             known = {hit.id for hit in hits}
             hits.extend(hit for hit in more if hit.id not in known)
             continue
@@ -104,9 +112,13 @@ def select_history(service, project: str, query: str, *, interactive: bool | Non
                 if reference.isdigit():
                     kind, reference = rows[int(reference) - 1]
                     if kind == "memory":
-                        print(service.store.read_memory(project, reference).render(), file=output)
+                        if conversations is None:
+                            print(service.store.read_memory(project, reference).render(), file=output)
+                        else:
+                            from .conversations import render_selected
+                            print(render_selected(service.store, project, conversations), file=output)
                         continue
-                print(service.store.get_item(project, reference)[1].raw, file=output)
+                print(service.get(project, [reference], conversations=conversations)["items"][0]["text"], file=output)
             except (KeyError, IndexError, ValueError) as exc:
                 print(f"ellie: cannot show that selection: {exc}", file=output)
             continue
@@ -120,7 +132,27 @@ def select_history(service, project: str, query: str, *, interactive: bool | Non
                 target.symmetric_difference_update({value})
         except ValueError:
             print("ellie: enter valid row numbers, a query, s ID, or q", file=output)
-    return Selection(sorted(selected_memories), [hit.id for hit in hits if hit.id in selected])
+    return Selection(sorted(selected_memories), [hit.id for hit in hits if hit.id in selected], conversations=conversations)
+
+
+def pick_conversations(service, project, *, input_fn=None, output=None):
+    input_fn, output = input_fn or input, output or sys.stdout
+    records = service.conversations(project)["conversations"]
+    for i, record in enumerate(records, 1):
+        print(f"{i}) {record['title']} · {record['agent']} · {len(record['items'])} items · {record['id']}", file=output)
+    while True:
+        answer = input_fn("Conversations [1,2 · 0 = no history · q = cancel]: ").strip()
+        if answer == "q":
+            return None
+        if answer == "0":
+            return []
+        try:
+            indices = [int(value) for value in answer.replace(",", " ").split()]
+            if not indices or any(value < 1 or value > len(records) for value in indices):
+                raise ValueError
+            return list(dict.fromkeys(records[value - 1]["id"] for value in indices))
+        except ValueError:
+            print("ellie: choose conversation numbers, 0, or q", file=output)
 
 
 def pick_memories(service, project: str, *, input_fn=None, output=None, dry_run: bool = False) -> Selection:
@@ -137,13 +169,18 @@ def pick_memories(service, project: str, *, input_fn=None, output=None, dry_run:
         print(f"{status['uncaptured_sessions']} earlier session(s) not captured. Run ellie capture after this.", file=output)
     while True:
         try:
-            answer = input_fn("Pick [1,2 · Enter = last used (*) · 0 = none · n = new · / = search]: ").strip()
+            answer = input_fn("Pick [1,2 · Enter = last used (*) · 0 = none · n = new · c = conversations · / = search]: ").strip()
         except EOFError:
             answer = ""
         if not answer:
             return Selection(last)
         if answer == "0":
             return Selection()
+        if answer == "c":
+            selected = pick_conversations(service, project, input_fn=input_fn, output=output)
+            if selected is not None:
+                return Selection(conversations=selected)
+            continue
         if answer == "n":
             name = input_fn("Name: ").strip()
             description = input_fn("Description: ").strip()

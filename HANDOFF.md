@@ -1,5 +1,24 @@
 # Handoff
 
+## Active extension: conversations and automatic capture (2026-11-19)
+
+User approved the claude-mem-inspired improvements and specifically requires
+selecting source conversations per project, at item granularity, while excluding
+others. Implementation is in progress; do not treat the whole extension as done.
+
+First slice: conversation provenance and historical versions are stored through
+Store in sessions/index.json. New source filters cover load/get/recall/timeline,
+briefings, startup flags and the picker. Explicit session_id bindings isolate
+parallel MCP chats. Added conversations, bind and timeline tools (17 total).
+47 focused tests pass, including real MCP subprocess and CLI exclusion checks.
+
+Next: lifecycle hooks/install, durable incremental capture, privacy filtering
+and pause/exclusion controls, save-health indicators and conversation selection
+in the dashboard. tests/test_privacy.py is the next failing tracer test and is
+not part of the first slice's commit. After completing all slices, run the full
+suite on Python 3.10/latest, package smoke, update docs, commit and push only
+code/tests/development docs. Never inspect or push the user's real memory.
+
 ## State
 
 All eight requested implementation/review milestones are complete. The original

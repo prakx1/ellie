@@ -52,7 +52,7 @@ class MCPTests(IsolatedTest):
         by_id = {response["id"]: response for response in responses}
         self.assertEqual(by_id[1]["result"]["protocolVersion"], "2025-06-18")
         tools = by_id[2]["result"]["tools"]
-        self.assertEqual(len(tools), 14)
+        self.assertEqual(len(tools), 17)
         self.assertTrue(all(tool["description"] for tool in tools))
         for response in responses:
             self.assertNotIn("error", response)
@@ -100,3 +100,21 @@ class MCPTests(IsolatedTest):
         self.assertFalse(responses[0]["result"]["isError"])
         self.assertIn("session fixture-session", self.store.read_memory(self.project, "work").get_section("Log"))
         self.assertIn("work", self.store.read_pending("fixture-run")["live_handoffs"])
+
+    def test_conversation_scope_survives_interleaved_requests_in_one_process(self):
+        self.memory("auth")
+        self.memory("billing")
+        responses = self.exchange([
+            self.call(1, "bind", session_id="chat-a", memories=["auth"], conversations=[]),
+            self.call(2, "bind", session_id="chat-b", memories=["billing"], conversations=[]),
+            self.call(3, "question", session_id="chat-a", memory="auth", text="Alpha question"),
+            self.call(4, "question", session_id="chat-b", memory="billing", text="Beta question"),
+            self.call(5, "recall", session_id="chat-a", query="question"),
+            self.call(6, "get", session_id="chat-a", ids=["Q2"]),
+            self.call(7, "timeline", session_id="chat-b", anchor="Q2"),
+            self.call(8, "conversations"),
+        ])
+        self.assertEqual([item["id"] for item in responses[4]["result"]["structuredContent"]["items"]], ["Q1"])
+        self.assertTrue(responses[5]["result"]["isError"])
+        self.assertEqual([item["id"] for item in responses[6]["result"]["structuredContent"]["items"]], ["Q2"])
+        self.assertEqual(len(responses[7]["result"]["structuredContent"]["conversations"]), 2)

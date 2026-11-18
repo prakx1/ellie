@@ -42,15 +42,24 @@ def parser() -> argparse.ArgumentParser:
     start.add_argument("--with", dest="with_ids", action="append")
     start.add_argument("--no-capture", action="store_true")
     start.add_argument("--dry-run", action="store_true")
+    start.add_argument("--from-conversation", "--from-session", dest="conversations", action="append", help="Use only this source conversation (repeatable)")
+    start.add_argument("--pick-conversations", action="store_true", help="Choose source conversations before starting")
     brief = commands.add_parser("brief", help="Select and print history relevant to a task")
     brief.add_argument("task")
     brief.add_argument("--json", action="store_true")
+    brief.add_argument("--conversation", dest="conversations", action="append")
     recall = commands.add_parser("recall", help="Search project history")
     recall.add_argument("query")
     recall.add_argument("--type", dest="types")
     recall.add_argument("--all-projects", action="store_true")
     recall.add_argument("--include-superseded", action="store_true")
     recall.add_argument("-n", type=int, default=10)
+    recall.add_argument("--conversation", dest="conversations", action="append")
+    conversations = commands.add_parser("conversations", help="List this project's saved conversations and source item IDs")
+    conversations.add_argument("--json", action="store_true")
+    timeline = commands.add_parser("timeline", help="Show items around a historical ID")
+    timeline.add_argument("anchor", nargs="?")
+    timeline.add_argument("--conversation", dest="conversations", action="append")
     show = commands.add_parser("show")
     show.add_argument("name", nargs="?", default="project")
     new = commands.add_parser("new")
@@ -159,6 +168,15 @@ def dispatch(service, options, agent_args):
             print("No workstreams yet. Create one with ellie new NAME.")
         print(f"{status['archived_count']} archived memories")
         print(f"{status['uncaptured_sessions']} uncaptured sessions" + (" — run ellie capture" if status["uncaptured_sessions"] else ""))
+    elif command == "conversations":
+        data = service.conversations(project)
+        if options.json:
+            print(json.dumps(data, ensure_ascii=False))
+        else:
+            for record in data["conversations"]:
+                print(f"{record['id']} · {record['title']} · {record['agent']} · {len(record['items'])} items · {record['capture']}")
+    elif command == "timeline":
+        print(json.dumps(service.timeline(project, anchor=options.anchor, conversations=options.conversations), ensure_ascii=False, indent=2))
     elif command == "new":
         service.create(project, options.name, options.description, options.goal, options.done_when)
         print("Created " + options.name)
@@ -182,12 +200,12 @@ def dispatch(service, options, agent_args):
         print("Linked to " + options.project)
     elif command == "recall":
         types = options.types.split(",") if options.types else None
-        hits = service.recall(project, options.query, types, options.n, options.include_superseded, options.all_projects)["items"]
+        hits = service.recall(project, options.query, types, options.n, options.include_superseded, options.all_projects, conversations=options.conversations)["items"]
         for hit in hits:
             prefix = hit["project"] + ":" if options.all_projects else ""
             print(f"{prefix}{hit['id']} · {hit['title']} · {hit['date']} · {hit['status'] or hit['outcome']} · {hit['memory']}\n  {hit['snippet']}")
     elif command == "brief":
-        selection = select_history(service, project, options.task, interactive=False if options.json else None)
+        selection = select_history(service, project, options.task, interactive=False if options.json else None, conversations=options.conversations)
         context = render_briefing(service, project, selection)
         print(json.dumps({"project": project, "memories": selection.memories, "ids": selection.ids, "briefing": context}, ensure_ascii=False) if options.json else context)
     elif command == "capture":
