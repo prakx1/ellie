@@ -7,12 +7,13 @@ Milestone 2 is committed as 2dce7ec (36 tests passed on both Python versions).
 Milestone 3 is committed as d918285 (44 tests passed on both versions).
 Milestone 4 is committed as b8c2687 (55 tests passed on both versions).
 Milestone 5 is committed as c491ecb (63 tests passed on both versions).
-Milestone 6 implements adapters, safe headless extraction, strict schema/retry,
-merge/state/dedupe rules, ancestry archives, external capture, durable retries,
-and automatic background capture. Targeted tests pass on both versions,
-including actual fake-CLI subprocesses, concurrent workers, and launcher exit.
-All 84 tests pass on Python 3.10.20 and 3.14.3.
-Milestone 6 is ready for its commit.
+Milestone 6 is committed as 7b27d54 (84 tests passed on both Python versions).
+Milestone 7 implements backfill, doctor, and README. Five targeted tests pass
+on both versions. Installed-wheel validation found/fixed virtual-environment
+interpreter symlink resolution; the clean installed MCP command now responds
+with 14 tools and no runtime dependencies (PYTHONPATH unset).
+All 91 tests pass on Python 3.10.20, 3.14.3, and 3.15.2.
+Milestone 7 is ready for its commit.
 Read the full supplied spec and copied it unchanged from
 `/Users/prakash.singh/Downloads/spec (4).md` to `spec.md`.
 `STEP0.md` contains command evidence, session formats, corrections, and limits.
@@ -36,10 +37,12 @@ external edits/deletion, archives, reindex, and callback cleanup.
 
 ## Next steps
 
-1. Commit milestone 6; implement milestone 7: oldest-first
-   backfill with confirmation/estimate, doctor, and README/installation docs.
-2. Complete milestone 8 acceptance review with honest pass/fail and integration
-   limits; fix any implementation gaps found during that review.
+1. Commit milestone 7, then perform the final acceptance review.
+2. Milestone 8: fix corrupt-index recovery (doctor can diagnose it, but reindex
+   currently constructs the broken cache before rebuilding), complete acceptance
+   checks, rebuild/retest the final wheel, and record honest pass/fail/live limits.
+3. Python 3.15.2 is installed under the development temp root, alongside 3.10.20;
+   its absolute bin/python3.15 path is used by the test runner.
 3. Keep every subprocess test isolated using tests.support.IsolatedTest and
    temporary HOME/CODEX_HOME/ELLIE_HOME. No subagent work has been requested.
 

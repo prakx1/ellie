@@ -139,3 +139,25 @@ See `STEP0.md` for evidence and verification limits.
   from an interrupted multi-file save. Summaries count associated items and
   distinguish failed/partial/worked results; they are displayed on the next CLI
   project command (JSON output remains machine-readable).
+
+## Milestone 7
+
+- Backfill shows candidates and an extraction-use estimate, requires explicit
+  confirmation unless --yes, and runs oldest first through the same durable
+  capture pipeline. Default ambiguous external assignments are proposed by the
+  model rather than prompting for every session.
+- Doctor runs without constructing the index so it can diagnose a corrupt
+  cache. It checks CLI help/login status without a model invocation, uses the
+  actual Codex MCP get response for registration, inspects session formats,
+  reports corrupt pending JSON, and probes real store write access.
+- An isolated wheel installation exposed that resolving sys.executable follows
+  a virtual-environment symlink to the base interpreter, losing installed Ellie.
+  Registration now preserves the absolute interpreter path without resolving
+  symlinks. A unit regression and installed-wheel MCP handshake verify this.
+- Local wheel installation through dry-run startup was measured separately
+  from source imports, with PYTHONPATH unset and temporary homes/tool directories.
+  Package metadata reports no runtime dependencies and both resource files ship.
+- The full suite reproduced a simultaneous SQLite schema-creation race on both
+  Python 3.14 and 3.15. Cache initialization is now serialized under its file
+  lock; failed initialization closes the connection and does not attach a store
+  callback. An eight-process fresh-cache barrier test exercises this boundary.

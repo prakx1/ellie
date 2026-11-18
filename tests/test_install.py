@@ -102,7 +102,7 @@ EXAMPLE = "value"
         self.assertEqual(result.returncode, 0, result.stderr)
         data = json.loads(result.stdout)
         self.assertEqual(data["transport"]["args"], ["-m", "ellie", "mcp"])
-        self.assertEqual(data["transport"]["command"], str(Path(sys.executable).resolve()))
+        self.assertEqual(data["transport"]["command"], os.path.abspath(sys.executable))
 
     def test_config_inside_repo_is_rejected_before_cli_runs(self):
         self.git(codex_home(), "init")
@@ -124,3 +124,12 @@ EXAMPLE = "value"
             install(codex=True, store=self.store)
             uninstall()
         self.assertEqual(path.read_bytes(), b"Original text without newline")
+
+    def test_interpreter_symlink_preserves_the_virtual_environment(self):
+        executable = self.root / "tool-venv" / "bin" / "python"
+        executable.parent.mkdir(parents=True)
+        executable.symlink_to(sys.executable)
+        with patch("ellie.install.run_cli", return_value=False), patch("ellie.install.sys.executable", str(executable)):
+            install(codex=True, claude=True, store=self.store)
+        self.assertIn(json.dumps(str(executable)), (codex_home() / "config.toml").read_text())
+        self.assertEqual(json.loads(claude_config().read_text())["mcpServers"]["ellie"]["command"], str(executable))

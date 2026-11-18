@@ -1,4 +1,8 @@
 from datetime import date
+import os
+import subprocess
+import sys
+import time
 
 from ellie.index import Index, recency, type_weight
 from ellie.store import FileStore
@@ -87,3 +91,30 @@ class IndexTests(IsolatedTest):
         index.close()
         # A closed index must not leave a callback attached to the store.
         self.store.add_item(self.project, "work", "N", "New note", {}, body="After close")
+
+    def test_simultaneous_initialization_of_fresh_cache(self):
+        self.memory()
+        barrier = self.root / "barrier"
+        barrier.mkdir()
+        script = """from pathlib import Path
+import sys,time
+from ellie.store import FileStore
+from ellie.index import Index
+barrier=Path(sys.argv[1]); (barrier/sys.argv[2]).touch()
+while not (barrier/'go').exists(): time.sleep(.005)
+with Index(FileStore()) as index: print(index.reindex())
+"""
+        workers = [subprocess.Popen([sys.executable, "-c", script, str(barrier), str(i)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) for i in range(8)]
+        try:
+            deadline = time.monotonic() + 15
+            while len(list(barrier.iterdir())) < 8 and time.monotonic() < deadline:
+                time.sleep(.01)
+            (barrier / "go").touch()
+            results = [(worker, *worker.communicate(timeout=30)) for worker in workers]
+            for worker, out, err in results:
+                self.assertEqual(worker.returncode, 0, err)
+        finally:
+            for worker in workers:
+                if worker.poll() is None:
+                    worker.kill()
+                worker.communicate()

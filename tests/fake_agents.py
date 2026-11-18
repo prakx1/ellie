@@ -58,6 +58,12 @@ if '--help' in args:
 if args[:3] == ['mcp','list','--json']:
     print('[{"name":"external-server"}]')
     raise SystemExit(0)
+if args[:3] == ['mcp','get','ellie']:
+    config=pathlib.Path(os.environ['CODEX_HOME'])/'config.toml'
+    if config.exists() and '[mcp_servers.ellie]' in config.read_text():
+        print(json.dumps({'transport':{'command':sys.executable,'args':['-m','ellie','mcp']}}))
+        raise SystemExit(0)
+    raise SystemExit(1)
 if not (agent=='codex' and args and args[0]=='exec') and not (agent=='claude' and '-p' in args):
     if os.environ.get('FAKE_INTERACTIVE_RECORD'):
         pathlib.Path(os.environ['FAKE_INTERACTIVE_RECORD']).write_text(json.dumps(args))

@@ -84,6 +84,12 @@ def parser() -> argparse.ArgumentParser:
     capture.add_argument("--dry-run", action="store_true")
     worker = commands.add_parser("_capture", help=argparse.SUPPRESS)
     worker.add_argument("run_id")
+    history = commands.add_parser("backfill", help="Capture historical sessions after confirmation")
+    history.add_argument("--since")
+    history.add_argument("--limit", type=int)
+    history.add_argument("--agent", choices=["codex", "claude"])
+    history.add_argument("--yes", action="store_true")
+    commands.add_parser("doctor", help="Check tools, integrations, session formats, and store health")
     return root
 
 
@@ -208,6 +214,9 @@ def dispatch(service, options, agent_args):
         if not jobs and not errors:
             print("No uncaptured sessions.")
         return int(failed)
+    elif command == "backfill":
+        from .backfill import backfill
+        return backfill(service, project, since=options.since, limit=options.limit, agent=options.agent, yes=options.yes)
     return 0
 
 
@@ -239,6 +248,10 @@ def main(argv: list[str] | None = None) -> int:
             uninstall()
             print("Removed Ellie agent integration. Project memories are intact.")
             return 0
+        if options.command == "doctor":
+            from .doctor import run
+            from .store import FileStore
+            return run(FileStore())
         service = MemoryService()
         try:
             return dispatch(service, options, agent_args)
@@ -251,7 +264,7 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         print("ellie: interrupted", file=sys.stderr)
         return 130
-    except (OSError, ValueError, KeyError, EOFError, sqlite3.Error) as exc:
+    except (OSError, ValueError, TypeError, KeyError, EOFError, sqlite3.Error) as exc:
         print("ellie: " + str(exc), file=sys.stderr)
         return 1
 

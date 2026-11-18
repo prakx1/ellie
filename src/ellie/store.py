@@ -155,6 +155,7 @@ class FileStore:
         if git_output(nearest, "rev-parse", "--show-toplevel"):
             raise ValueError("ELLIE_HOME must be outside a git repository")
         self._listeners: list[Callable[[str, str], None]] = []
+        self.pending_problems: list[str] = []
 
     def path(self, *parts: str) -> Path:
         path = self.root.joinpath(*parts)
@@ -371,8 +372,21 @@ class FileStore:
         return path.read_bytes().decode("utf-8") if path.exists() else default
 
     def list_pending(self) -> list[dict]:
-        return [{**self._read_json(self.path(".local", "pending", path.name)), "run_id": path.stem}
-                for path in sorted(self.path(".local", "pending").glob("*.json"))]
+        self.pending_problems = []
+        records = []
+        for path in sorted(self.path(".local", "pending").glob("*.json")):
+            try:
+                validate_name(path.stem)
+                records.append({**self._read_json(self.path(".local", "pending", path.name)), "run_id": path.stem})
+            except (ValueError, OSError) as exc:
+                self.pending_problems.append(path.name + ": " + str(exc))
+        return records
+
+    def probe_writable(self) -> None:
+        path = self.path(".local", "doctor-" + uuid.uuid4().hex)
+        with FileLock(path):
+            _replace(path, lambda stream: stream.write(b""))
+            path.unlink()
 
     def delete_pending(self, run: str) -> None:
         path = self.path(".local", "pending", validate_name(run) + ".json")

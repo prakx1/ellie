@@ -169,7 +169,7 @@ def strip_codex_table(text: str) -> str:
 
 
 def codex_table() -> str:
-    return ('[mcp_servers.ellie]\ncommand = ' + json.dumps(str(Path(sys.executable).resolve()))
+    return ('[mcp_servers.ellie]\ncommand = ' + json.dumps(os.path.abspath(sys.executable))
             + '\nargs = ["-m", "ellie", "mcp"]\ndefault_tools_approval_mode = "approve"\n')
 
 
@@ -218,7 +218,7 @@ def install(*, codex: bool = False, claude: bool = False, store: FileStore | Non
         config = guarded(codex_home() / "config.toml")
         backup(config)
         run_cli("codex", "mcp", "remove", "ellie")
-        run_cli("codex", "mcp", "add", "ellie", "--", str(Path(sys.executable).resolve()), "-m", "ellie", "mcp")
+        run_cli("codex", "mcp", "add", "ellie", "--", os.path.abspath(sys.executable), "-m", "ellie", "mcp")
         modify(config, upsert_codex)
         modify(codex_home() / "AGENTS.md", upsert_instructions)
         installed.append("Codex")
@@ -226,12 +226,12 @@ def install(*, codex: bool = False, claude: bool = False, store: FileStore | Non
         config = guarded(claude_config())
         backup(config)
         run_cli("claude", "mcp", "remove", "--scope", "user", "ellie")
-        run_cli("claude", "mcp", "add", "--scope", "user", "ellie", "--", str(Path(sys.executable).resolve()), "-m", "ellie", "mcp")
+        run_cli("claude", "mcp", "add", "--scope", "user", "ellie", "--", os.path.abspath(sys.executable), "-m", "ellie", "mcp")
         def add(text):
             data = json.loads(text) if text.strip() else {}
             if not isinstance(data, dict) or not isinstance(data.get("mcpServers", {}), dict):
                 raise ValueError("Claude config and mcpServers must be JSON objects")
-            entry = {"type": "stdio", "command": str(Path(sys.executable).resolve()), "args": ["-m", "ellie", "mcp"]}
+            entry = {"type": "stdio", "command": os.path.abspath(sys.executable), "args": ["-m", "ellie", "mcp"]}
             if data.get("mcpServers", {}).get("ellie") == entry:
                 return text
             data.setdefault("mcpServers", {})["ellie"] = entry

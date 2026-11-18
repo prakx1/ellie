@@ -9,7 +9,7 @@ import re
 import sqlite3
 import time
 
-from .store import Store
+from .store import FileLock, Store
 
 COLUMNS = "project, memory, id, type, title, body, date, status, outcome, scope"
 
@@ -59,7 +59,17 @@ class Index:
         self.store = store
         self.path = path or store.path(".local", "index.db")
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(self.path, timeout=2)
+        with FileLock(self.path):
+            self.db = sqlite3.connect(self.path, timeout=2)
+            try:
+                self._initialize(force_like)
+                self.sync()
+            except BaseException:
+                self.db.close()
+                raise
+        self.store.subscribe(self.sync_memory)
+
+    def _initialize(self, force_like: bool) -> None:
         self.db.row_factory = sqlite3.Row
         self.db.create_function("ellie_casefold", 1, lambda value: value.casefold())
         self.db.execute("PRAGMA journal_mode=WAL")
@@ -82,8 +92,6 @@ class Index:
                 self.db.execute("CREATE INDEX item_project ON items(project)")
         self.fts = "VIRTUAL TABLE" in self.db.execute("SELECT sql FROM sqlite_master WHERE name='items'").fetchone()[0].upper()
         self.db.commit()
-        self.store.subscribe(self.sync_memory)
-        self.sync()
 
     def close(self) -> None:
         self.store.unsubscribe(self.sync_memory)
