@@ -2,56 +2,55 @@
 
 ## State
 
-The user approved proceeding. Milestone 1 is committed as 40d6606.
-Milestone 2 is committed as 2dce7ec (36 tests passed on both Python versions).
-Milestone 3 is committed as d918285 (44 tests passed on both versions).
-Milestone 4 is committed as b8c2687 (55 tests passed on both versions).
-Milestone 5 is committed as c491ecb (63 tests passed on both versions).
-Milestone 6 is committed as 7b27d54 (84 tests passed on both Python versions).
-Milestone 7 implements backfill, doctor, and README. Five targeted tests pass
-on both versions. Installed-wheel validation found/fixed virtual-environment
-interpreter symlink resolution; the clean installed MCP command now responds
-with 14 tools and no runtime dependencies (PYTHONPATH unset).
-All 91 tests pass on Python 3.10.20, 3.14.3, and 3.15.2.
-Milestone 7 is ready for its commit.
-Read the full supplied spec and copied it unchanged from
-`/Users/prakash.singh/Downloads/spec (4).md` to `spec.md`.
-`STEP0.md` contains command evidence, session formats, corrections, and limits.
-Implemented paths.py, model.py, store.py, redaction, and package metadata.
-The milestone 1 suite of 29 tests passed on Python 3.10.20 and 3.14.3. Tests cover real temporary
-Git worktrees, byte round-trips, eight concurrent writer subprocesses, IDs,
-supersede/resolve, redaction, stale locks, atomic-failure recovery, and archives.
-Index tests cover FTS5/LIKE ranking, filtering, superseded exclusion, Unicode,
-external edits/deletion, archives, reindex, and callback cleanup.
+All eight requested implementation/review milestones are complete. The original
+spec.md is unchanged. See ACCEPTANCE.md for every §19 criterion and its scope.
+93 unittest tests pass on Python 3.10.20, 3.14.3, and 3.15.2; the final token-refresh
+assertion was also rerun on all three. No automation failures remain.
 
-## Environment and constraints
+The final wheel was installed into an isolated uv tool environment with
+PYTHONPATH unset. Fresh local install through dry-run startup took 5.97 seconds;
+the registered installed MCP command successfully lists all 14 tools. Wheel
+metadata has no runtime dependencies, and its modules/resources match source.
+Artifact: dist/ellie-0.1.0-py3-none-any.whl (ignored build artifact).
 
-- Installed CLIs: Codex 0.169.0; Claude Code 2.1.278. Both fork paths exist.
-- Default python3 is 3.9.6; versioned Python 3.11/3.12/3.13/3.14 and uv exist.
-- No runtime dependencies, API keys, real-home writes, or Ellie-originated
-  modifications to a user's repository.
-- The only real agent-state access was authorized read-only session inspection.
-- CLI probes used temporary HOME/CODEX_HOME/ELLIE_HOME/CLAUDE_CONFIG_DIR/XDG roots.
-- Probe evidence:
-  `/var/folders/93/djm21yqn3979_wbdq5vpv4_c0000gq/T/ellie-step0-oj3_jlhh`.
+## Milestone commits
 
-## Next steps
+1. 40d6606 — paths, lossless model, locked file store, IDs, supersede/resolve.
+2. 2dce7ec — FTS5/LIKE index, ranking, external edits, reindex.
+3. d918285 — stdio MCP and all 14 tools, subprocess protocol tests.
+4. b8c2687 — CLI, launcher, picker, history checklist, startup template.
+5. c491ecb — idempotent safe install/uninstall and backups.
+6. 7b27d54 — adapters, safe extraction, strict schema/retry, merge/background jobs.
+7. 6394135 — backfill, doctor, README, interpreter and startup-race fixes.
+8. This commit — acceptance report, corrupt-index recovery, final regressions.
 
-1. Commit milestone 7, then perform the final acceptance review.
-2. Milestone 8: fix corrupt-index recovery (doctor can diagnose it, but reindex
-   currently constructs the broken cache before rebuilding), complete acceptance
-   checks, rebuild/retest the final wheel, and record honest pass/fail/live limits.
-3. Python 3.15.2 is installed under the development temp root, alongside 3.10.20;
-   its absolute bin/python3.15 path is used by the test runner.
-3. Keep every subprocess test isolated using tests.support.IsolatedTest and
-   temporary HOME/CODEX_HOME/ELLIE_HOME. No subagent work has been requested.
+## Next steps / open issues
 
-## Open checks
+- Public PyPI publishing was not requested/performed. Criterion 1 is not closed;
+  local-wheel installation is verified, but public uv tool install ellie is not.
+- Real authenticated native extraction, no-resume-history behavior, provider
+  schema enforcement, live approval behavior, and Claude-generated recap remain
+  unverified. Automated model-dependent verdicts use canned CLI processes.
+- Use a separately authenticated isolated profile for live checks. Never copy
+  the user's real credentials or run development/tests against real agent roots.
+- If an already-running client retains a corrupt cache connection, restart it
+  after ellie reindex quarantines/rebuilds the damaged cache. Markdown is intact.
+- No known failing automated checks. Store is ready for another backend through
+  its protocol; cloud, sync, hooks for plain sessions, and semantic search remain
+  out of v1 scope.
 
-- Authenticated ephemeral fork/no-resume-history behavior, server-side schema
-  strictness, and live MCP approval behavior remain unverified. Do not access
-  or copy real credentials to test them.
-- Required extraction isolation, schema/envelope handling, both history formats,
-  live-state protection, concurrency, cross-agent context, and parent archive
-  boundaries are implemented and tested with fake CLIs. Actual authenticated
-  CLI integration is still intentionally unverified.
+## Development environment
+
+Temporary root:
+/var/folders/93/djm21yqn3979_wbdq5vpv4_c0000gq/T/ellie-dev-l1b5i_i2
+
+run.py in that root runs commands with isolated HOME/CODEX_HOME/ELLIE_HOME,
+CLAUDE_CONFIG_DIR/XDG/uv directories and source PYTHONPATH. The installed-wheel
+smoke helper deliberately unsets PYTHONPATH and uses a separate tool directory.
+Python 3.10 and 3.15 are under python/cpython-<version>-macos-aarch64-none/bin/;
+Python 3.14 is /opt/homebrew/bin/python3.14. README also documents a fresh test
+home setup that does not depend on these temporary paths.
+
+Only the explicitly requested Step 0 session inspection used real agent state,
+read-only. No real agent configuration, real Ellie store, or credentials were
+modified. No live model calls or API keys were used.

@@ -34,7 +34,7 @@ def clean_environment() -> dict:
 
 def run(command: list[str], *, cwd: Path, timeout: float, prompt: str | None = None) -> str:
     process = subprocess.Popen(command, cwd=cwd, env=clean_environment(), stdin=subprocess.PIPE,
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, errors="replace",
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
                                start_new_session=os.name != "nt")
     try:
         out, err = process.communicate(prompt, timeout=timeout)

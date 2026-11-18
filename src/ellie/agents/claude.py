@@ -65,8 +65,8 @@ def read(path: Path, include=None) -> Session | None:
                 text = "\n".join(block.get("text", "") for block in content if isinstance(block, dict) and block.get("type") == "text")
             else:
                 continue
-            if text:
-                prompts[row.get("uuid") or str(line_number)] = text
+            if text or isinstance(content, list) and content:
+                prompts[row.get("uuid") or str(line_number)] = text or "[non-text user input]"
     if malformed:
         raise ValueError(f"{malformed} malformed JSONL record(s); retry after the session finishes writing")
     if not cwd or not moments:

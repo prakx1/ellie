@@ -252,6 +252,20 @@ def main(argv: list[str] | None = None) -> int:
             from .doctor import run
             from .store import FileStore
             return run(FileStore())
+        if options.command == "reindex":
+            from .index import Index
+            from .store import FileStore
+            store = FileStore()
+            try:
+                index = Index(store)
+            except sqlite3.DatabaseError as exc:
+                if not any(word in str(exc).lower() for word in ("not a database", "malformed", "no such module")):
+                    raise
+                store.quarantine_index()
+                index = Index(store)
+            with index:
+                print(f"Indexed {index.reindex()} items.")
+            return 0
         service = MemoryService()
         try:
             return dispatch(service, options, agent_args)

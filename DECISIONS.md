@@ -161,3 +161,19 @@ See `STEP0.md` for evidence and verification limits.
   Python 3.14 and 3.15. Cache initialization is now serialized under its file
   lock; failed initialization closes the connection and does not attach a store
   callback. An eight-process fresh-cache barrier test exercises this boundary.
+
+## Milestone 8 acceptance review
+
+- A regression reproduced failure to reindex a corrupt cache. Reindex now
+  initializes separately from normal service startup and quarantines corrupt
+  database/WAL/SHM files before rebuilding from Markdown. Lock-contention errors
+  do not trigger quarantine. Memory bytes are asserted unchanged after recovery.
+  Already-running clients holding the damaged cache may require a restart.
+- Claude image-only user messages count as human prompts; tool results and
+  meta/sidechain records remain excluded. Extraction output decoding is UTF-8.
+- The complete public Store protocol now includes the logical mutations and
+  local support operations actually used by CLI/MCP/capture; root/path describe
+  per-device cache/support locations, not a future cloud backend's content.
+- Public PyPI publishing and authenticated end-to-end CLI checks are separate
+  from the automated fixture verdicts. No live model call or real-home install
+  was performed; the acceptance report makes these limits explicit.

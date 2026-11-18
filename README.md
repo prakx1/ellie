@@ -216,6 +216,8 @@ Run `ellie doctor` for missing tools, login/integration problems, changed
 session formats, failed captures, or store permissions. Upgrade an agent if
 required extraction controls are missing. Check `.local/logs` for background
 results, retry with `ellie capture --wait`, and rebuild search with `ellie reindex`.
+Corrupt index files are quarantined before rebuilding; memory files are preserved.
+Restart an already-running agent if it still holds the damaged cache open.
 
 The verified development CLIs are Codex 0.169.0 and Claude Code 2.1.278.
 Automated tests use fake CLI executables and canned JSON; they need no login.

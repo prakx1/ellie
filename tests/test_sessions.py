@@ -71,3 +71,10 @@ class SessionTests(IsolatedTest):
         found = adapter("claude").discover()
         self.assertEqual(found.sessions[0].user_messages, 2)
         self.assertEqual(found.sessions[0].cwd, str(self.checkout))
+
+    def test_claude_image_only_prompt_counts_as_human_input(self):
+        session = write_session(self, "claude")
+        rows = [json.loads(line) for line in session.path.read_text().splitlines()]
+        rows[1]["message"]["content"] = [{"type": "image", "source": {"type": "base64", "data": "fixture"}}]
+        session.path.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+        self.assertEqual(adapter("claude").read(session.path).user_messages, 2)

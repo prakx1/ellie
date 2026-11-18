@@ -93,13 +93,15 @@ class CLITests(IsolatedTest):
     def test_about_with_cross_project_and_prompt_budget(self):
         self.memory()
         self.store.add_item(self.project, "work", "R", "Iframe refresh", {"outcome": "failed", "what": "refresh", "evidence": "Safari ITP"})
+        self.store.add_item(self.project, "work", "D", "Use authlib", {"status": "active", "chosen": "authlib", "why": "PKCE token refresh built in"})
         other = "github.com/example/other"
         self.store.create_memory(other, "other")
         self.store.add_item(other, "other", "D", "Use Redis", {"status": "active", "chosen": "redis", "why": "Counters"})
-        result = self.cli("brief", "refresh", "--json")
-        self.assertEqual(json.loads(result.stdout)["ids"], ["R1"])
+        result = self.cli("brief", "token refresh", "--json")
+        self.assertEqual(set(json.loads(result.stdout)["ids"]), {"D1", "R1"})
         prompt = self.cli("start", "-p", "--about", "refresh", "--with", other + ":D1", "--dry-run").stdout
         self.assertIn("Safari ITP", prompt)
+        self.assertIn("Use authlib", prompt)
         self.assertIn("Use Redis", prompt)
         self.assertIn("## Selected from project history", prompt)
         self.cli("config", "briefing_max_chars", "32")
@@ -164,3 +166,13 @@ class CLITests(IsolatedTest):
         self.assertTrue((Path(self.env["CODEX_HOME"]) / "AGENTS.md").exists())
         self.assertIn("Project memories are intact", self.cli("uninstall").stdout)
         self.assertEqual(self.store.read_memory(self.project, "work").to_bytes(), before)
+
+    def test_reindex_recovers_corrupt_cache_without_changing_memories(self):
+        self.memory()
+        self.store.add_item(self.project, "work", "N", "Redis counters", {}, body="Keep this history")
+        before = {memory.name: memory.to_bytes() for memory in self.store.iter_memories(self.project)}
+        index = self.store.path(".local", "index.db")
+        index.write_bytes(b"corrupt cache fixture")
+        self.assertIn("Indexed 1 items", self.cli("reindex").stdout)
+        self.assertIn("Redis counters", self.cli("recall", "redis").stdout)
+        self.assertEqual({memory.name: memory.to_bytes() for memory in self.store.iter_memories(self.project)}, before)

@@ -40,6 +40,10 @@ TOOLS = [
 ]
 
 
+def reject_constant(value):
+    raise ValueError("non-finite JSON number")
+
+
 class Server:
     def __init__(self, service: MemoryService | None = None):
         self.service = service or MemoryService(agent=os.environ.get("ELLIE_AGENT", "you"))
@@ -105,7 +109,7 @@ def main() -> int:
             if not line.strip():
                 continue
             try:
-                request = json.loads(line, parse_constant=lambda _: (_ for _ in ()).throw(ValueError("non-finite JSON number")))
+                request = json.loads(line, parse_constant=reject_constant)
             except (ValueError, UnicodeError):
                 response = server.error(None, -32700, "invalid JSON")
             else:
