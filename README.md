@@ -67,6 +67,34 @@ ellie recall 'iframe refresh'
 The first status after capture displays its summary. Claude loads the same
 memory as Codex. Always verify remembered facts against current code.
 
+## Browse your memory
+
+```sh
+ellie ui
+```
+
+Opens a local HTML dashboard at `http://127.0.0.1:8767`. Pick a project in the
+sidebar, filter by workstream or item type, and search decisions, results,
+findings, questions, and notes. Click a card for all its fields, or open a full
+memory from the Overview. Activity shows saved logs and capture records.
+Archived workstreams are available through the Archived checkbox.
+
+The page refreshes every 15 seconds while visible. It reads your existing
+`ELLIE_HOME` and uses the same ranked search as `ellie recall`. It does not edit
+memories, scan agent session folders, or make model calls. Search may update
+the rebuildable SQLite cache. Keep recording memory through your agent or CLI.
+The server binds only to this machine; no hosting or extra packages are needed.
+Press Ctrl-C in the terminal to stop it.
+
+```sh
+ellie ui --no-open           # print the URL without opening a browser
+ellie ui --port 0            # choose a free port
+ellie ui --port 9000         # choose a specific port
+```
+
+After updating this checkout, upgrade an existing tool installation with
+`uv tool install --force --python 3.10 .` (or select an installed Python 3.10+).
+
 ## Selecting context
 
 `ellie start` offers a numbered memory picker. Enter uses the starred last
@@ -98,6 +126,7 @@ names the `load`/`get` calls the agent should make instead of inlining it.
 | Command | Purpose |
 | --- | --- |
 | `ellie` / `ellie status` | Project, memories, last selection, archives, uncaptured sessions |
+| `ellie ui [--port 8767] [--no-open]` | Local read-only HTML dashboard for projects, memory, search, and activity |
 | `ellie start [codex\|claude]` | Launch with selected context; `--no-capture` disables automatic extraction |
 | `ellie brief TASK [--json]` | Select and render relevant history without launching |
 | `ellie recall QUERY` | Ranked search; `--type D,R,F,Q,N`, `--all-projects`, `--include-superseded`, `-n N` |

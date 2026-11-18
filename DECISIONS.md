@@ -177,3 +177,25 @@ See `STEP0.md` for evidence and verification limits.
 - Public PyPI publishing and authenticated end-to-end CLI checks are separate
   from the automated fixture verdicts. No live model call or real-home install
   was performed; the acceptance report makes these limits explicit.
+
+## Local dashboard (0.2.0)
+
+- The user's follow-up explicitly requests an HTML UI, bringing forward the
+  dashboard deferred in §2 of the original v1 spec. The original spec remains
+  unchanged. `ellie ui` serves packaged HTML/CSS/JavaScript through Python's
+  standard-library HTTP server; no frontend build or runtime dependency is added.
+- This first viewer is read-only. It reads documents, logs, and saved capture
+  metadata through Store; search uses the existing ranked index and may rebuild
+  its cache. It does not call load/status, discover agent sessions, start models,
+  inspect transcript archives, write memory, or modify a user's repository.
+- Bind only to 127.0.0.1. Reject foreign Host/Origin and cross-site fetch headers,
+  provide no CORS access, and disallow mutation methods. Package a fixed asset
+  whitelist and use a restrictive content policy. Saved Markdown is inserted as
+  text, never evaluated as HTML. No analytics or external assets are requested.
+- Each search opens and closes its own index on the request thread. The server
+  handles simultaneous browser requests with a bounded socket timeout; it shares
+  the Store interface rather than introducing another content backend.
+- Automatic browser preview could not connect: the browser plugin reported
+  "privileged native pipe bridge is not available; browser-client is not trusted".
+  HTTP/subprocess, asset packaging, and JavaScript syntax checks cover behavior;
+  visual and browser-interaction verification remains an explicit limitation.

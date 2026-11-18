@@ -26,6 +26,9 @@ def parser() -> argparse.ArgumentParser:
     root = EllieParser(prog="ellie", description="🐘 Local project memory for coding agents")
     root.add_argument("--version", action="version", version=__version__)
     commands = root.add_subparsers(dest="command")
+    ui = commands.add_parser("ui", help="Open the local memory dashboard")
+    ui.add_argument("--port", type=int, default=8767, help="Local port (0 selects a free port)")
+    ui.add_argument("--no-open", action="store_true", help="Print the URL without opening a browser")
     for name in ("status", "where", "projects", "reindex", "mcp"):
         commands.add_parser(name)
     start = commands.add_parser("start", help="Start an agent with selected project memory")
@@ -233,6 +236,10 @@ def main(argv: list[str] | None = None) -> int:
         if options.command == "where":
             print(ellie_home())
             return 0
+        if options.command == "ui":
+            from .ui import run
+            from .store import FileStore
+            return run(FileStore(), port=options.port, open_browser=not options.no_open)
         if options.command == "mcp":
             from .mcp_server import main as mcp
             return mcp()

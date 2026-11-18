@@ -4,14 +4,42 @@
 
 All eight requested implementation/review milestones are complete. The original
 spec.md is unchanged. See ACCEPTANCE.md for every §19 criterion and its scope.
-93 unittest tests pass on Python 3.10.20, 3.14.3, and 3.15.2; the final token-refresh
-assertion was also rerun on all three. No automation failures remain.
+The original 93 unittest tests passed on Python 3.10.20, 3.14.3, and 3.15.2.
+The 0.2.0 dashboard brings the suite to 100 tests: all pass on 3.10.20 and
+3.15.2, and the seven dashboard tests also pass on 3.14.3. No automation failures
+remain.
 
 The final wheel was installed into an isolated uv tool environment with
 PYTHONPATH unset. Fresh local install through dry-run startup took 5.97 seconds;
 the registered installed MCP command successfully lists all 14 tools. Wheel
 metadata has no runtime dependencies, and its modules/resources match source.
 Artifact: dist/ellie-0.1.0-py3-none-any.whl (ignored build artifact).
+
+## Local dashboard (0.2.0)
+
+The user's follow-up requested an HTML UI. `ellie ui` now opens a loopback-only
+dashboard with project navigation, workstream/type/archive filters, ranked
+search, goals/state/next steps, complete item fields and memory text, copy,
+and saved log/capture activity. It refreshes every 15 seconds while visible.
+Use `--no-open` to print the URL or `--port 0` to select a free port.
+
+The server uses stdlib only and Store for saved data. It never loads agent
+context, scans agent session roots, starts extraction, or writes memory. Search
+uses the existing SQLite cache. Foreign Host/Origin/cross-site requests and
+mutation methods are rejected. User text never becomes HTML. Packaged assets
+make the installed tool self-contained and require no network.
+
+Verification: real HTTP requests and CLI subprocesses cover content, search
+ranking, archives, capture records, empty stores, path/method/origin boundaries,
+unchanged document/repo bytes, and graceful shutdown. A clean Python 3.10 wheel
+installation serves HTML/CSS/JS/JSON with PYTHONPATH unset; its MCP registration
+still lists 14 tools and package metadata has no runtime dependencies. Node's
+JavaScript syntax check passes. The browser plugin could not connect because
+its privileged bridge was unavailable/untrusted, so browser interactions and
+visual layout remain unverified. Do not describe this as browser-tested.
+
+Wheel: dist/ellie-0.2.0-py3-none-any.whl (ignored build artifact).
+Isolated installed-wheel smoke record: temporary-root/package-smoke-ui/result.json.
 
 ## Milestone commits
 
@@ -38,6 +66,8 @@ Artifact: dist/ellie-0.1.0-py3-none-any.whl (ignored build artifact).
 - No known failing automated checks. Store is ready for another backend through
   its protocol; cloud, sync, hooks for plain sessions, and semantic search remain
   out of v1 scope.
+- Visually check the dashboard in a browser when browser access is available,
+  including narrow screens, search/filter combinations, and the details dialog.
 
 ## Development environment
 
@@ -52,5 +82,7 @@ Python 3.14 is /opt/homebrew/bin/python3.14. README also documents a fresh test
 home setup that does not depend on these temporary paths.
 
 Only the explicitly requested Step 0 session inspection used real agent state,
-read-only. No real agent configuration, real Ellie store, or credentials were
-modified. No live model calls or API keys were used.
+read-only. No development/tests modified real agent configuration, the real
+Ellie store, or credentials. The user's installed CLI was upgraded separately
+from tests; integration config and existing memories remain intact. No live
+model calls or API keys were used.

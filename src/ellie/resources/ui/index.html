@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#192b2b">
+  <meta name="description" content="Your projects, remembered. A local view of Ellie's project memory.">
+  <title>Ellie · Project memory</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar" aria-label="Project navigation">
+    <a class="brand" href="/" aria-label="Ellie home"><span class="elephant">🐘</span><span>ellie<span class="brand-dot">.</span></span></a>
+    <p class="tagline">Good work deserves<br>to be remembered.</p>
+    <div class="sidebar-heading">YOUR PROJECTS <span id="project-count">0</span></div>
+    <nav id="projects" aria-label="Projects"></nav>
+    <div class="sidebar-footer"><span class="live-dot"></span> Local memory<br><span class="privacy-note">On your machine. In your control.</span></div>
+  </aside>
+  <main>
+    <header class="topbar"><span class="breadcrumb">WORKSPACE <span>/</span> PROJECT MEMORY</span><span class="local-badge"><span class="live-dot"></span> LOCAL ONLY</span></header>
+    <div class="page">
+      <div class="title-row"><div><p class="eyebrow">A LITTLE CONTEXT GOES A LONG WAY</p><h1 id="project-title">Your projects, remembered.</h1><p id="project-path" class="muted">A home for what you learned along the way.</p></div><button id="refresh" class="refresh-button" title="Refresh saved memory">↻ <span>Refresh</span></button></div>
+      <div id="error" class="error" role="alert" hidden></div>
+      <div id="empty" class="empty" hidden><span class="empty-elephant">🐘</span><h2>A fresh start.</h2><p>Ellie will remember your decisions, discoveries, and next steps here.</p><p>In your project, ask Codex or Claude:</p><blockquote>Use Ellie to create and load a workstream for this task. Save important decisions, results, and findings as we work.</blockquote><p class="muted">Already have sessions? Run <code>ellie backfill</code> in your project to review them.</p></div>
+      <div id="workspace" hidden>
+        <section class="stats" aria-label="Memory summary" id="stats"></section>
+        <div class="content-heading"><div class="tabs" role="tablist" aria-label="Memory view"><button role="tab" data-view="overview" aria-selected="true">Overview</button><button role="tab" data-view="items" aria-selected="false">All memories</button><button role="tab" data-view="timeline" aria-selected="false">Activity</button></div><span class="saved-note" id="saved-note"></span></div>
+        <div class="toolbar"><label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" maxlength="1000" placeholder="Search what you know…" aria-label="Search memory"><kbd>⌘ K</kbd></label><label class="select-label"><span class="sr-only">Workstream</span><select id="memory-filter" aria-label="Workstream"><option value="">All workstreams</option></select></label><label class="archive-label"><input type="checkbox" id="archived"> Archived</label></div>
+        <div id="filters" class="filters" aria-label="Filter memory type"></div>
+        <section id="context" class="context-grid" aria-label="Workstream context"></section>
+        <div class="section-heading"><h2 id="list-title">Recently remembered</h2><span id="result-count" class="muted" aria-live="polite"></span></div>
+        <div id="items" class="item-grid"></div>
+        <section id="activity" hidden aria-label="Activity"></section>
+        <p id="no-results" class="no-results" hidden>No matching memories. Try another search or filter.</p>
+        <footer class="page-footer"><span>Small memories. Better continuity.</span><span>Saved by your agents · Viewed by you</span></footer>
+      </div>
+    </div>
+  </main>
+  <dialog id="detail" aria-labelledby="detail-title"><div class="detail-header"><span id="detail-label" class="eyebrow">MEMORY</span><button id="close-detail" aria-label="Close details">✕</button></div><h2 id="detail-title"></h2><div id="detail-content"></div><div class="detail-actions"><button id="copy-detail">Copy text</button><span id="copy-status" role="status"></span></div></dialog>
+</body>
+</html>
