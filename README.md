@@ -84,6 +84,16 @@ findings, questions, and notes. Click a card for all its fields, or open a full
 memory from the Overview. Activity shows saved logs and capture records.
 Archived workstreams are available through the Archived checkbox.
 
+Open **Conversations** to see which chat produced each item. Select one or more
+conversations and choose **Use selected conversations**, or **Use only this
+conversation**. Overview, search, full details, and Activity then use only those
+sources. Set a new workstream name and copy the startup command to begin new
+work with that context. **Start with no past history** produces a `--no-history`
+command. Project switching resets the source filter.
+
+The dashboard distinguishes the last memory save from the last extraction and
+shows pending/failed captures. Page refresh does not imply that memory was saved.
+
 The page refreshes every 15 seconds while visible. It reads your existing
 `ELLIE_HOME` and uses the same ranked search as `ellie recall`. It does not edit
 memories, scan agent session folders, or make model calls. Search may update
@@ -108,6 +118,7 @@ To reuse knowledge from specific conversations in the same project:
 ellie conversations
 ellie start codex --from-conversation CONVERSATION_ID --new next-task
 ellie start claude --pick-conversations
+ellie start codex --no-history --new unrelated-task
 ellie recall 'refresh' --conversation CONVERSATION_ID
 ellie brief 'add retries' --conversation CONVERSATION_ID --json
 ellie timeline R4 --conversation CONVERSATION_ID
@@ -124,6 +135,9 @@ In chat, ask: “Use only conversation ID for context, create/load workstream NA
 and bind this session to it.” The agent uses `conversations`, `bind`, and `load`.
 Include the current `session_id` in every MCP call so parallel chats keep their
 bindings. `recall`, `get`, and `timeline` retain a bound conversation restriction.
+Once bindings exist, agent calls without a current session ID are rejected for
+content reads/writes instead of silently using unrestricted history. Status,
+conversation discovery and privacy controls remain available for setup.
 
 `ellie start` offers a numbered memory picker. Enter uses the starred last
 selection, `0` loads only shared memory, `n` creates a workstream, and `/`
@@ -155,6 +169,9 @@ names the `load`/`get` calls the agent should make instead of inlining it.
 | --- | --- |
 | `ellie` / `ellie status` | Project, memories, last selection, archives, uncaptured sessions |
 | `ellie ui [--port 8767] [--no-open]` | Local read-only HTML dashboard for projects, memory, search, and activity |
+| `ellie conversations [--json]` | Project-scoped conversation catalog, source item IDs and capture state |
+| `ellie timeline [ID] [--conversation ID]` | Nearby historical items within the chosen source context |
+| `ellie privacy [pause\|resume\|exclude\|include] [ID]` | Capture controls; `--archives filtered\|off` controls future owned archives |
 | `ellie start [codex\|claude]` | Launch with selected context; `--no-capture` disables automatic extraction |
 | `ellie brief TASK [--json]` | Select and render relevant history without launching |
 | `ellie recall QUERY` | Ranked search; `--type D,R,F,Q,N`, `--all-projects`, `--include-superseded`, `-n N` |
@@ -173,6 +190,7 @@ names the `load`/`get` calls the agent should make instead of inlining it.
 | `ellie where` | Print the memory root |
 | `ellie install` / `ellie uninstall` | Manage agent integration |
 | `ellie mcp` | Run the stdio server; normally started by the agent |
+| `ellie hook AGENT EVENT` | Lifecycle handler used by installed agent hooks |
 
 Time windows accept a positive number followed by `h`, `d`, or `w`.
 Expected errors use `ellie:` on stderr and exit 1; closed output pipes are quiet.

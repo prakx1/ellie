@@ -102,6 +102,9 @@ class Server:
             session_id = arguments.pop("session_id", None)
             project = self.service.project(arguments.pop("project", None), arguments.pop("cwd", None))
             with self.service.in_session(session_id):
+                if not self.service._session() and name not in {"status", "conversations", "privacy"}:
+                    if any("bound_memories" in record for record in self.service.store.read_sessions(project).values()):
+                        raise ValueError("Include the current session_id from the Ellie hook block; refusing an unscoped call in a project with conversation bindings")
                 value = getattr(self.service, name)(project, **arguments)
             return {"content": [{"type": "text", "text": json.dumps(value, ensure_ascii=False)}], "structuredContent": value, "isError": False}
         except Exception as exc:

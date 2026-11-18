@@ -45,6 +45,24 @@
   were stable/enabled in the installed CLI under a temporary profile; native
   trust review remains the user's choice, never bypassed by the installer.
 
+- The dashboard's source selection is read-only and generates a quoted startup
+  command. Its server filters item text and global summaries before returning
+  the selected view; it does not rely only on hiding cards in JavaScript.
+  A separate catalog lets the user choose sources without changing bindings in
+  other active chats. Project switching clears the source filter.
+- Agent content calls without session_id fail once bindings exist, rather than
+  silently escaping a conversation restriction. Status/catalog/privacy remain
+  available for setup. CLI browsing and the local viewer stay user-controlled.
+- Dedupe and delayed capture acknowledgement preserve existing historical item
+  snapshots; they cannot copy another conversation's later answer/status into
+  the earlier snapshot. Worker liveness checks require the owned heartbeat lock
+  as well as a live PID. Explicit retry includes incremental jobs even while
+  the original conversation is still open.
+- Browser preview remains unavailable (untrusted/missing privileged bridge).
+  Temporary jsdom tests exercise UI interactions against real isolated HTTP
+  endpoints; this is DOM verification, not visual browser verification. The
+  test library lives outside the repo and adds no runtime/test-suite dependency.
+
 ## Step 0 compatibility decisions (approved 2026-11-18)
 
 The user approved proceeding after Step 0. `spec.md` remains unchanged.

@@ -7,6 +7,7 @@ class ConversationTests(IsolatedTest):
         self.memory()
         id = self.store.add_item(self.project, "work", "Q", "Which provider?", {"status": "open"}, session="chat-a")
         self.store.resolve(self.project, id, "Beta-only answer", session="chat-b")
+        self.store.add_item(self.project, "work", "Q", "Which provider?", {"status": "open"}, session="chat-a", dedupe=True)
         service = MemoryService(self.store)
         self.addCleanup(service.close)
         earlier = service.get(self.project, [id], conversations=["chat-a"])["items"][0]

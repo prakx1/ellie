@@ -18,6 +18,21 @@ from tests.support import IsolatedTest
 
 
 class CaptureTests(IsolatedTest):
+    def test_capture_preserves_live_version_when_another_conversation_changed_item(self):
+        session = write_session(self)
+        id = self.store.add_item(self.project, "work", "Q", "Which provider?", {"status": "open"}, session=session.id)
+        self.store.resolve(self.project, id, "Other conversation answer", session="chat-b")
+        self.payload = empty_extraction(worthwhile=False)
+        self.save_payload()
+        run = self.job(session)
+        self.store.update_pending(run, lambda job: job.update({"live_items": [id]}))
+        self.assertEqual(process_job(self.store, run)["capture"], "done")
+        service = MemoryService(self.store)
+        self.addCleanup(service.close)
+        original = service.get(self.project, [id], conversations=[session.id])["items"][0]
+        self.assertEqual(original["fields"]["status"], "open")
+        self.assertNotIn("Other conversation answer", original["text"])
+
     def setUp(self):
         super().setUp()
         self.checkout = self.root / "checkout"

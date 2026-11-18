@@ -44,6 +44,7 @@ def parser() -> argparse.ArgumentParser:
     start.add_argument("--dry-run", action="store_true")
     start.add_argument("--from-conversation", "--from-session", dest="conversations", action="append", help="Use only this source conversation (repeatable)")
     start.add_argument("--pick-conversations", action="store_true", help="Choose source conversations before starting")
+    start.add_argument("--no-history", action="store_true", help="Start without past conversation context")
     brief = commands.add_parser("brief", help="Select and print history relevant to a task")
     brief.add_argument("task")
     brief.add_argument("--json", action="store_true")

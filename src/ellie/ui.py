@@ -12,24 +12,55 @@ from urllib.parse import parse_qs, urlsplit
 import webbrowser
 
 from .index import Index
+from .conversations import list_conversations, memberships, selected_items
+from .model import ITEM_SECTIONS
+from .privacy import health
 from .store import Store
 
 
-def snapshot(store: Store, selected: str | None = None) -> dict:
+def item_payload(item, name, archived, belonging):
+    return {"id": item.id, "type": item.type, "title": item.title, "fields": item.fields,
+            "body": item.body, "raw": item.raw, "memory": name, "archived": archived,
+            "conversations": belonging.get(item.id, [])}
+
+
+def scoped_memories(store, project, conversations, current):
+    pairs = selected_items(store, project, conversations)
+    sections, grouped = {}, {}
+    records = store.read_sessions(project)
+    for id in conversations:
+        for name, values in records.get(id, {}).get("context", {}).items():
+            sections.setdefault(name, {}).update(values)
+    belonging = memberships(store, project)
+    for name, item in pairs:
+        grouped.setdefault(name, []).append(item)
+    versions = {memory["name"]: memory for memory in current}
+    rows = []
+    for name in sorted(set(grouped) | set(sections)):
+        content = dict(sections.get(name, {}))
+        for item in grouped.get(name, []):
+            title = ITEM_SECTIONS[item.type]
+            content[title] = content.get(title, "") + "\n" + item.raw
+        rows.append({"name": name, "meta": {"name": name}, "sections": content,
+                     "archived": versions.get(name, {}).get("archived", True),
+                     "raw": "# Memory: " + name + "\n\n" + "\n\n".join("## " + title + "\n" + value for title, value in content.items()),
+                     "items": [item_payload(item, name, versions.get(name, {}).get("archived", True), belonging) for item in grouped.get(name, [])]})
+    return rows
+
+
+def snapshot(store: Store, selected: str | None = None, conversations: list[str] | None = None) -> dict:
     """Read saved documents and capture records without loading a memory in an agent."""
     projects = []
     documents = {}
     for project in store.list_projects():
         memories = []
+        belonging = memberships(store, project)
         archived = {meta.name for meta in store.list_memories(project, True)}
         for memory in store.iter_memories(project):
             memories.append({
                 "name": memory.name, "meta": memory.meta, "sections": memory.sections,
                 "archived": memory.name in archived, "raw": memory.render(),
-                "items": [{"id": item.id, "type": item.type, "title": item.title,
-                           "fields": item.fields, "body": item.body, "raw": item.raw,
-                           "memory": memory.name, "archived": memory.name in archived}
-                          for item in memory.items],
+                "items": [item_payload(item, memory.name, memory.name in archived, belonging) for item in memory.items],
             })
         documents[project] = memories
         shared = next((m for m in memories if m["name"] == "project"), {})
@@ -47,6 +78,10 @@ def snapshot(store: Store, selected: str | None = None) -> dict:
     if selected:
         sessions = store.read_sessions(selected)
         pending = [job for job in store.list_pending() if job.get("project") == selected]
+        if conversations is not None:
+            documents[selected] = scoped_memories(store, selected, conversations, documents[selected])
+            sessions = {id: record for id, record in sessions.items() if id in conversations}
+            pending = [job for job in pending if job.get("session_id") in conversations]
         # Do not expose archives/transcripts, source paths, prompts or arbitrary job data.
         keys = ("agent", "started", "ended", "capture", "memories", "items", "error")
         detail = {
@@ -56,6 +91,8 @@ def snapshot(store: Store, selected: str | None = None) -> dict:
             "pending": [{"id": job.get("run_id", ""),
                          **{k: job[k] for k in keys if k in job}} for job in pending],
             "warnings": list(store.pending_problems),
+            "conversations": list_conversations(store, selected),
+            "selected_conversations": conversations, "capture_health": health(store, selected),
         }
     return {"projects": projects, "project": detail,
             "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
@@ -108,6 +145,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
         route = urlsplit(self.path)
         query = parse_qs(route.query)
+        conversations = query.get("conversation", [] if query.get("scope") == ["selected"] else None)
         try:
             assets = {"/": ("index.html", "text/html"),
                       "/assets/style.css": ("style.css", "text/css"),
@@ -118,7 +156,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send(200, data, kind + "; charset=utf-8")
             elif route.path == "/api/snapshot":
                 project = query.get("project", [self.server.project])[0]
-                self._send(200, snapshot(self.server.store, project))
+                self._send(200, snapshot(self.server.store, project, conversations))
             elif route.path == "/api/search":
                 project = query.get("project", [self.server.project])[0]
                 if project not in self.server.store.list_projects():
@@ -128,7 +166,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     raise ValueError("Search is limited to 1000 characters")
                 # A fresh connection per request stays on the serving thread.
                 with Index(self.server.store) as index:
-                    hits = index.recall(term, project=project, limit=500, include_superseded=True) if term else []
+                    hits = index.recall(term, project=project, limit=500, include_superseded=True, conversations=conversations) if term else []
                 self._send(200, {"items": [hit.as_dict() for hit in hits]})
             else:
                 self._send(404, {"error": "Not found"})

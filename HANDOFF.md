@@ -4,7 +4,7 @@
 
 User approved the claude-mem-inspired improvements and specifically requires
 selecting source conversations per project, at item granularity, while excluding
-others. Implementation is in progress; do not treat the whole extension as done.
+others. Implementation is complete in 0.3.0.
 
 First slice: conversation provenance and historical versions are stored through
 Store in sessions/index.json. New source filters cover load/get/recall/timeline,
@@ -22,12 +22,34 @@ exclude/include, and archive-off controls are available. Existing raw archives
 are not retroactively changed. Capture health includes observed/saved/captured
 times, pending work and errors. 116 tests pass on Python 3.14.3.
 
-Next: finish conversation selection and health in the dashboard (API filter
-tracer is in progress), run the full suite on Python 3.10/latest, package smoke,
-update docs, commit and push only code/tests/development docs. Never inspect or
-push the user's real memory. No authenticated model run or real profile edit has
-been performed; Codex's hook feature was checked in an isolated profile and is
-stable/enabled. Hook trust must still be reviewed by the user in the client.
+Third slice: the dashboard has conversation selection, server-side source
+filtering, historical details, per-item source labels, save/capture health, and
+a startup-command copier. --no-history starts without old context. Agent content
+calls missing session_id fail closed once bindings exist. Historical snapshot
+replay and active-session explicit retry have regression coverage.
+
+Final validation: 119 unittest tests pass on Python 3.10.20 and 3.15.2. The clean
+Python 3.10 wheel serves its packaged UI, registers 18 MCP tools, preserves strict
+conversation versions and scope, and runs the installed hook entrypoint with no
+model calls. Fresh install to dry-run startup took 3.29 seconds. Metadata has no
+runtime dependencies; schema remains 11 top-level properties. Node syntax and
+temporary DOM tests passed project switching, source choice, search, historical
+details, clipboard, timeline, no-history and empty state without DOM errors.
+Visual layout remains unverified because the browser bridge is unavailable.
+
+No authenticated model run or real agent-profile edit has been performed. Codex
+hooks were stable/enabled under a temporary profile. The installed user CLI is
+updated separately; the user must run ellie install, restart the client, and
+review/trust Codex hooks with /hooks to activate automatic capture. Only source,
+tests and development docs are committed/pushed; never the user's real memory.
+
+Extension commits: fc03930 (provenance/selection), 6d8d0bc (hooks/privacy/capture),
+and the following dashboard/integration commit. Wheel: dist/ellie-0.3.0-py3-none-any.whl.
+Isolated smoke: temporary-root/package-smoke-conversations-final/result.json.
+DOM smoke: temporary-root/ui-dom/smoke.cjs (temporary jsdom; not a runtime dep).
+Remaining limits: legacy untracked sources/versions cannot be reconstructed;
+single JSONL records over 1000000 bytes remain pending; live authenticated
+extraction/provider behavior and browser layout need separate verification.
 
 ## State
 
@@ -93,8 +115,8 @@ Isolated installed-wheel smoke record: temporary-root/package-smoke-ui/result.js
 - If an already-running client retains a corrupt cache connection, restart it
   after ellie reindex quarantines/rebuilds the damaged cache. Markdown is intact.
 - No known failing automated checks. Store is ready for another backend through
-  its protocol; cloud, sync, hooks for plain sessions, and semantic search remain
-  out of v1 scope.
+  its protocol; cloud, sync, and semantic search remain outside this release.
+  Hooks for ordinary sessions are included in the 0.3.0 extension above.
 - Visually check the dashboard in a browser when browser access is available,
   including narrow screens, search/filter combinations, and the details dialog.
 

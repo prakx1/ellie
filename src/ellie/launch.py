@@ -42,6 +42,10 @@ def start(service, options, agent_args: list[str]) -> int:
     agent = options.agent or service.config["agent"]
     selection = Selection(options.memory or [])
     sources = getattr(options, "conversations", None)
+    if getattr(options, "no_history", False):
+        if sources is not None:
+            raise ValueError("--no-history cannot be combined with --from-conversation")
+        sources = []
     if getattr(options, "pick_conversations", False):
         sources = pick_conversations(service, project)
         if sources is None:

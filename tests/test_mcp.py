@@ -113,8 +113,11 @@ class MCPTests(IsolatedTest):
             self.call(6, "get", session_id="chat-a", ids=["Q2"]),
             self.call(7, "timeline", session_id="chat-b", anchor="Q2"),
             self.call(8, "conversations"),
+            self.call(9, "get", ids=["Q2"]),
         ])
         self.assertEqual([item["id"] for item in responses[4]["result"]["structuredContent"]["items"]], ["Q1"])
         self.assertTrue(responses[5]["result"]["isError"])
         self.assertEqual([item["id"] for item in responses[6]["result"]["structuredContent"]["items"]], ["Q2"])
         self.assertEqual(len(responses[7]["result"]["structuredContent"]["conversations"]), 2)
+        self.assertTrue(responses[8]["result"]["isError"])
+        self.assertIn("session_id", responses[8]["result"]["content"][0]["text"])

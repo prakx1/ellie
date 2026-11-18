@@ -3,7 +3,7 @@
 const $ = (selector) => document.querySelector(selector);
 const types = {D: "Decisions", R: "Results", F: "Findings", Q: "Questions", N: "Notes"};
 const singular = {D: "Decision", R: "Result", F: "Finding", Q: "Question", N: "Note"};
-const state = {data: null, project: null, memory: "", type: "", view: "overview", archived: false, query: "", hits: null};
+const state = {data: null, project: null, memory: "", type: "", view: "overview", archived: false, query: "", hits: null, conversations: null, picked: new Set()};
 let searchRequest = 0;
 let snapshotRequest = 0;
 let searchTimer;
@@ -41,7 +41,12 @@ function visibleItems(ignoreType = false) {
   return ignoreType ? result : result.filter(item => !state.type || item.type === state.type);
 }
 async function api(path, params = {}) {
-  const response = await fetch(path + "?" + new URLSearchParams(params));
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (Array.isArray(value)) value.forEach(item => query.append(key, item));
+    else query.set(key, value);
+  });
+  const response = await fetch(path + "?" + query);
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Could not read memory");
   return data;
@@ -54,13 +59,16 @@ async function refresh(project = state.project) {
   const request = ++snapshotRequest;
   $("#refresh").disabled = true;
   try {
-    const data = await api("/api/snapshot", project ? {project} : {});
+    const switching = project !== state.project;
+    const scope = !switching && state.conversations !== null ? {scope: "selected", conversation: state.conversations} : {};
+    const data = await api("/api/snapshot", {...(project ? {project} : {}), ...scope});
     if (request !== snapshotRequest) return;
     const changed = state.project !== data.project?.id;
     state.data = data;
     state.project = data.project?.id || null;
     if (changed) {
       state.memory = ""; state.query = ""; state.type = ""; state.hits = null;
+      state.conversations = null; state.picked = new Set();
       $("#search").value = "";
       searchRequest++;
     }
@@ -76,7 +84,8 @@ async function search() {
   if (!query || !state.project) { state.hits = null; renderContent(); return; }
   $("#result-count").textContent = "Searching…";
   try {
-    const data = await api("/api/search", {project: state.project, q: query});
+    const scope = state.conversations !== null ? {scope: "selected", conversation: state.conversations} : {};
+    const data = await api("/api/search", {project: state.project, q: query, ...scope});
     if (request !== searchRequest) return;
     state.hits = data.items;
     $("#error").hidden = true;
@@ -103,7 +112,7 @@ function render() {
   $("#empty").hidden = !!active;
   $("#workspace").hidden = !active;
   if (!active) return;
-  const all = items().filter(item => !item.archived);
+  const all = items().filter(item => state.archived || !item.archived);
   const cards = [["Memories kept", all.length, "Pieces of useful context", "◈"],
     ["Decisions made", all.filter(item => item.type === "D" && item.fields.status === "active").length, "The reasoning behind the work", "◇"],
     ["Lessons from attempts", all.filter(item => item.type === "R").length, "What worked. What didn’t.", "↗"],
@@ -121,17 +130,22 @@ function render() {
   }));
   $("#memory-filter").value = state.memory;
   $("#saved-note").textContent = "↻ Refreshes every 15s";
+  renderHealth();
+  renderScope();
   renderContent();
 }
 function renderContent() {
   if (!state.data?.project) return;
   const timeline = state.view === "timeline";
+  const conversations = state.view === "conversations";
   document.querySelectorAll("[data-view]").forEach(node => node.setAttribute("aria-selected", String(node.dataset.view === state.view)));
-  $("#filters").hidden = timeline;
-  $("#items").hidden = timeline;
+  $("#filters").hidden = timeline || conversations;
+  $("#items").hidden = timeline || conversations;
   $("#activity").hidden = !timeline;
-  $("#search").disabled = timeline;
-  $("#search").placeholder = timeline ? "Switch to a memory view to search…" : "Search what you know…";
+  $("#conversation-list").hidden = !conversations;
+  $("#conversation-controls").hidden = !conversations;
+  $("#search").disabled = timeline || conversations;
+  $("#search").placeholder = timeline || conversations ? "Switch to a memory view to search…" : "Search what you know…";
   const available = visibleItems(true);
   $("#filters").replaceChildren(...[["", "All types"], ...Object.entries(types)].map(([type, label]) => {
     const count = available.filter(item => !type || item.type === type).length;
@@ -141,6 +155,7 @@ function renderContent() {
     return node;
   }));
   renderContext();
+  if (conversations) { renderConversations(); return; }
   if (timeline) { renderActivity(); return; }
   const filtered = visibleItems();
   const shown = state.view === "overview" && !state.query ? filtered.slice(0, 12) : filtered;
@@ -173,7 +188,8 @@ function itemCard(item) {
   const fields = item.fields;
   const excerpt = fields.why || fields.detail || fields.what || fields.answer || item.body.trim() || "Open to explore this memory.";
   const foot = el("div", "card-footer");
-  foot.append(el("span", "memory-name", item.memory + " · " + shortDate(fields.date)));
+  const source = (item.conversations || []).map(id => id.slice(0, 8)).join(", ");
+  foot.append(el("span", "memory-name", item.memory + " · " + shortDate(fields.date) + (source ? " · chat " + source : " · source unknown")));
   const status = fields.status || fields.outcome || (item.archived ? "archived" : "saved");
   const statusClass = ["failed", "open", "partial"].includes(status) ? " " + status : "";
   foot.append(el("span", "item-status" + statusClass, status));
@@ -219,7 +235,7 @@ function openDetail(title, label, raw, content) {
 }
 function openItem(item) {
   const fields = el("dl", "detail-fields");
-  Object.entries(item.fields).forEach(([key, value]) => {
+  Object.entries({...item.fields, conversations: (item.conversations || []).join("\n") || "Unknown / older untracked item"}).forEach(([key, value]) => {
     const row = el("div"); row.append(el("dt", "", key), el("dd", "", value)); fields.append(row);
   });
   const content = [fields];
@@ -229,6 +245,88 @@ function openItem(item) {
 function openMemory(memory) {
   openDetail(memory.name === "project" ? "Shared project memory" : memory.name, "FULL MEMORY / MARKDOWN", memory.raw, [el("pre", "detail-text", memory.raw)]);
 }
+
+function renderHealth() {
+  const health = state.data.project.capture_health || {};
+  const label = health.paused ? "Saving paused" : health.failed ? "Capture needs attention" : health.pending ? "Capture queued / running" : "Capture queue clear";
+  const saved = health.last_saved ? new Date(health.last_saved).toLocaleString() : "No recorded save yet";
+  const captured = health.last_capture ? new Date(health.last_capture).toLocaleString() : "Not captured yet";
+  const node = $("#capture-health");
+  node.className = "capture-health" + (health.paused || health.failed ? " needs-attention" : "");
+  node.replaceChildren(el("strong", "", label), el("span", "", "Last memory save: " + saved), el("span", "", "Last extraction: " + captured), el("span", "", (health.pending || 0) + " pending · " + (health.failed || 0) + " failed"));
+  node.title = (health.errors || []).map(error => error.error).join("\n") || "Project save status. Page refresh is separate from memory saving.";
+}
+function renderScope() {
+  const selected = state.conversations;
+  $("#source-scope-text").textContent = selected === null ? "Context: all project history" : selected.length ? "Context: only " + selected.length + " selected conversation(s)" : "Context: no past conversations";
+  $("#clear-conversations").hidden = selected === null;
+  updateLaunchCommand();
+}
+async function useConversations(ids) {
+  state.conversations = ids;
+  state.picked = new Set(ids || []);
+  state.memory = ""; state.type = ""; state.hits = null;
+  state.archived = ids !== null;
+  $("#archived").checked = state.archived;
+  searchRequest++;
+  await refresh();
+}
+function renderConversations() {
+  const records = state.data.project.conversations || [];
+  const list = el("div", "conversation-grid");
+  records.forEach(record => {
+    const card = el("article", "conversation-card");
+    const label = el("label", "conversation-check");
+    const checkbox = el("input"); checkbox.type = "checkbox"; checkbox.checked = state.picked.has(record.id);
+    checkbox.setAttribute("aria-label", "Select " + record.title);
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) state.picked.add(record.id); else state.picked.delete(record.id);
+      updateLaunchCommand();
+    });
+    label.append(checkbox, el("span", "", record.title));
+    card.append(label, el("code", "conversation-id", record.id),
+      el("p", "muted", record.agent + " · " + shortDate(record.started) + " · " + record.items.length + " items · " + record.capture),
+      el("p", "muted", record.memories.join(", ") || "No workstream yet"));
+    if (!record.historical_versions) card.append(el("p", "legacy-note", "Older source: historical versions may be unavailable."));
+    if (record.error) card.append(el("p", "error", record.error));
+    card.append(button("Use only this conversation ↗", "conversation-use", () => useConversations([record.id])));
+    list.append(card);
+  });
+  $("#conversation-list").replaceChildren(list);
+  $("#list-title").textContent = "Choose where your context comes from";
+  $("#result-count").textContent = records.length + " conversations";
+  $("#no-results").hidden = records.length > 0;
+  $("#no-results").textContent = "No attributed conversations yet. Install and enable hooks, or capture an existing session.";
+  updateLaunchCommand();
+}
+function shellQuote(value) {
+  return /^[A-Za-z0-9_.-]+$/.test(value) ? value : "'" + value.replaceAll("'", "'\\''") + "'";
+}
+function updateLaunchCommand() {
+  const name = $("#launch-memory").value.trim();
+  const valid = /^[a-z0-9][a-z0-9._-]*$/.test(name) && name !== "project";
+  const selected = state.picked.size ? [...state.picked] : state.conversations;
+  const args = ["ellie", "start", $("#launch-agent").value];
+  if (selected !== null) {
+    if (!selected.length) args.push("--no-history");
+    selected.forEach(id => args.push("--from-conversation", id));
+  }
+  args.push("--new", name || "next-task");
+  $("#launch-command").textContent = args.map(shellQuote).join(" ");
+  $("#copy-launch").disabled = !valid;
+  $("#apply-conversations").disabled = !state.picked.size;
+  $("#apply-conversations").textContent = "Use selected conversations (" + state.picked.size + ")";
+}
+$("#choose-conversations").addEventListener("click", () => {state.view = "conversations"; renderContent();});
+$("#clear-conversations").addEventListener("click", () => useConversations(null));
+$("#fresh-context").addEventListener("click", () => useConversations([]));
+$("#apply-conversations").addEventListener("click", () => useConversations([...state.picked]));
+$("#launch-agent").addEventListener("change", updateLaunchCommand);
+$("#launch-memory").addEventListener("input", updateLaunchCommand);
+$("#copy-launch").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText($("#launch-command").textContent); $("#launch-copy-status").textContent = "Copied — run it in this project's terminal."; }
+  catch { $("#launch-copy-status").textContent = "Select and copy the command above."; }
+});
 $("#refresh").addEventListener("click", () => refresh());
 $("#memory-filter").addEventListener("change", event => {state.memory = event.target.value; renderContent();});
 $("#archived").addEventListener("change", event => {state.archived = event.target.checked; render();});
@@ -247,7 +345,7 @@ $("#copy-detail").addEventListener("click", async () => {
 document.addEventListener("keydown", event => {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
-    if (state.view === "timeline") {state.view = "items"; renderContent();}
+    if (["timeline", "conversations"].includes(state.view)) {state.view = "items"; renderContent();}
     $("#search").focus();
   }
 });

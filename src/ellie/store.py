@@ -150,6 +150,7 @@ class Store(Protocol):
     def list_pending(self) -> list[dict]: ...
     def delete_pending(self, run: str) -> None: ...
     def finish_pending(self, run: str, generation: int = 0, *, keep: bool = False) -> bool: ...
+    def worker_active(self, run: str, pid: int) -> bool: ...
     def update_sessions(self, project: str, change: Callable[[dict], T]) -> T: ...
     def ensure_resource(self, name: str, content: str) -> None: ...
     def read_resource(self, name: str, default: str = "") -> str: ...
@@ -432,6 +433,15 @@ class FileStore:
             path.unlink(missing_ok=True)
             return True
 
+    def worker_active(self, run: str, pid: int) -> bool:
+        path = self.path(".local", "workers", validate_name(run) + ".lock")
+        try:
+            if time.time() - path.stat().st_mtime > 60:
+                return False
+            return self._read_json(path).get("pid") == pid
+        except (OSError, ValueError):
+            return False
+
     def resolve_project(self, cwd: Path | str) -> tuple[str, Path]:
         return project_id(cwd, self.read_local("paths"))
 
@@ -576,7 +586,7 @@ class FileStore:
                         with FileLock(self.memory_path(project, old_name)):
                             self._persist(self.memory_path(project, old_name), old_memory)
                         self._notify(project, old_name)
-                remember(self, project, session, memory, self.get_item(project, duplicate)[1])
+                remember(self, project, session, memory, self.get_item(project, duplicate)[1], preserve=True)
                 for old_id, old_name in old_decisions.items():
                     remember(self, project, session, old_name, self.get_item(project, old_id)[1])
                 return duplicate

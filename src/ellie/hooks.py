@@ -28,13 +28,13 @@ def transcript_path(agent: str, value: str | None) -> Path | None:
     return path
 
 
-def _worker_alive(job):
+def _worker_alive(store, job):
     pid = job.get("worker_pid")
     if not isinstance(pid, int) or pid <= 0:
         return False
     try:
         os.kill(pid, 0)
-        return True
+        return store.worker_active(job["run_id"], pid)
     except OSError:
         return False
 
@@ -76,7 +76,7 @@ def enqueue(store, project, session, agent, cwd, path, event, payload, *, start_
             job["not_before"] = clock
         if event == "SessionEnd":
             job["ended"] = now()
-        launch = not _worker_alive(job) and clock - job.get("dispatch_at", 0) > 2
+        launch = not _worker_alive(store, job) and clock - job.get("dispatch_at", 0) > 2
         if launch and start_worker:
             job["dispatch_at"] = clock
         return launch
@@ -160,7 +160,7 @@ def handle(store, agent: str, event: str, payload: dict, *, start_worker=True) -
         if start_worker:
             from .capture import start_background
             for job in store.list_pending():
-                if job.get("project") == project and job.get("incremental") and job.get("attempts", 0) < 3 and not _worker_alive(job):
+                if job.get("project") == project and job.get("incremental") and job.get("attempts", 0) < 3 and not _worker_alive(store, job):
                     start_background(store, job["run_id"])
     elif event != "UserPromptSubmit":
         enqueue(store, project, session, agent, payload["cwd"], path, event, payload, start_worker=start_worker)

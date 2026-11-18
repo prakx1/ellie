@@ -163,6 +163,18 @@ class HookTests(IsolatedTest):
         self.assertEqual(self.store.read_pending(run)["attempts"], 3)
         self.assertEqual(Path(os.environ["FAKE_COUNTER"]).read_text(), "3")
         self.assertEqual(health(self.store, self.project)["failed"], 1)
+        from ellie.capture import plan_jobs
+        jobs, errors = plan_jobs(self.store, self.project)
+        self.assertEqual(errors, [])
+        self.assertIn(run, [job["run_id"] for job in jobs])
+
+    def test_unrelated_live_pid_does_not_block_recovery_dispatch(self):
+        session = write_session(self)
+        self.hook(session, "SessionStart")
+        self.hook(session, "Stop", turn_id="first")
+        run = self.store.list_pending()[0]["run_id"]
+        self.store.update_pending(run, lambda job: job.update({"worker_pid": os.getpid()}))
+        self.assertFalse(self.store.worker_active(run, os.getpid()))
 
     def test_pause_exclude_recursion_and_foreign_transcript_do_not_queue(self):
         from ellie.privacy import control

@@ -15,6 +15,25 @@ from tests.support import IsolatedTest
 
 
 class UITests(IsolatedTest):
+    def test_conversation_filter_does_not_return_unselected_text_or_later_versions(self):
+        self.memory()
+        a = self.store.add_item(self.project, "work", "Q", "Alpha question", {"status": "open"}, session="chat-a")
+        self.store.add_item(self.project, "work", "N", "Beta item", {}, body="Excluded beta body", session="chat-b")
+        self.store.resolve(self.project, a, "Excluded beta answer", session="chat-b")
+        self.store.update_memory(self.project, "work", lambda m: m.set_section("Current state", "Excluded global state"))
+        self.server()
+        data = self.get("/api/snapshot", project=self.project, conversation="chat-a")
+        payload = json.dumps(data["project"]["memories"])
+        self.assertIn("Alpha question", payload)
+        for text in ("Excluded beta body", "Excluded beta answer", "Excluded global state"):
+            self.assertNotIn(text, payload)
+        self.assertEqual(self.get("/api/search", project=self.project, q="beta", conversation="chat-a")["items"], [])
+        self.assertIn("capture_health", data["project"])
+        self.assertEqual({record["id"] for record in data["project"]["conversations"]}, {"chat-a", "chat-b"})
+        combined = self.get("/api/snapshot", project=self.project, conversation=["chat-a", "chat-b"])
+        self.assertIn("Excluded beta body", json.dumps(combined["project"]["memories"]))
+        self.assertEqual(self.get("/api/snapshot", project=self.project, scope="selected")["project"]["memories"], [])
+
     def server(self):
         server = make_server(self.store, port=0)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -28,7 +47,7 @@ class UITests(IsolatedTest):
         return server
 
     def get(self, path, **params):
-        with urlopen(self.url + path + ("?" + urlencode(params) if params else ""), timeout=10) as response:
+        with urlopen(self.url + path + ("?" + urlencode(params, doseq=True) if params else ""), timeout=10) as response:
             return json.loads(response.read())
 
     def test_empty_snapshot_does_not_create_files(self):

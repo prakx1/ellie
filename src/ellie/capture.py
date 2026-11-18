@@ -350,7 +350,7 @@ def process_job(store, run_id: str) -> dict:
                 from .conversations import remember
                 for id in ids:
                     name, item = store.get_item(project, id)
-                    remember(store, project, session.id, name, item)
+                    remember(store, project, session.id, name, item, preserve=True)
                 summary = _summary(store, project, target, ids)
                 if status == "done":
                     store.update_local("state", lambda data: data.setdefault("capture_summaries", {}).setdefault(project, []).append(summary))
@@ -413,7 +413,7 @@ def plan_jobs(store, project: str, *, since: str = "7d", session_id: str | None 
     found = discover_project(store, project, agent=agent)
     registry = store.read_sessions(project)
     all_pending = [job for job in store.list_pending() if job.get("project") == project]
-    pending = [job for job in all_pending if job.get("ended")]
+    pending = [job for job in all_pending if job.get("ended") or job.get("incremental")]
     jobs, claimed, errors = [], set(), []
     for job in all_pending:
         if not job.get("ended"):
