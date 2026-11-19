@@ -1,5 +1,22 @@
 # Handoff
 
+## README update (2026-11-20)
+
+Expanded installation prerequisites, clone/setup commands, agent-specific setup,
+and upgrade steps. The guide now distinguishes installing the executable from
+registering MCP/hooks, explains restart and Codex hook trust, supports starting
+agents normally, and walks through the local UI and conversation selection.
+Troubleshooting covers a stopped/suspended UI server, occupied ports, empty
+memory views, ELLIE_HOME mismatches, and missing capture timestamps.
+
+Documentation-only change. Verified the documented CLI/uv flags using help
+commands with temporary HOME/CODEX_HOME/ELLIE_HOME/Claude/XDG/uv-cache paths;
+no memory was created. Markdown fences and git diff whitespace checks pass.
+The application version and runtime behavior remain 0.3.0. The previous full
+119-test Python 3.10/3.15 results remain the runtime baseline; no full rerun was
+needed for prose changes. No real agent profiles or private memory were read
+or changed for this documentation task.
+
 ## Active extension: conversations and automatic capture (2026-11-19)
 
 User approved the claude-mem-inspired improvements and specifically requires

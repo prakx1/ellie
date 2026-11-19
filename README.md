@@ -11,43 +11,119 @@ consume your CLI plan's normal usage.
 
 ## Install
 
-From this checkout:
+You need Git, [uv](https://docs.astral.sh/uv/getting-started/installation/),
+Python 3.10 or later, and Codex CLI or Claude Code installed and signed in.
+Ellie uses that CLI's existing login; no API key is required.
+
+For a new checkout:
 
 ```sh
+git clone https://github.com/prakx1/ellie.git
+cd ellie
 uv tool install --python 3.10 .
 ellie install
+ellie --version
 ellie doctor
 ```
 
-Alternatively, install the checkout with `python3.10 -m pip install .`.
-Setuptools is only a build dependency. The public PyPI release is a separate
-publishing step; this repository does not publish itself.
+If you already cloned the repo, run the commands starting with `uv tool install`
+from the Ellie checkout.
 
-Install configures Codex and, when detected, Claude Code. Select an agent with
-`ellie install --codex` or `ellie install --claude`; both flags may be combined.
-It registers a stdio MCP server using an absolute Python interpreter path,
+There are two setup steps: `uv tool install` installs the `ellie` executable;
+`ellie install` configures the agents. The second command registers **both MCP
+and automatic capture hooks** together. You do not register or invoke hooks by
+hand. By default it configures Codex and also Claude Code when detected.
+
+To choose the agents explicitly, use one of these instead of `ellie install`:
+
+```sh
+ellie install --codex            # Codex only
+ellie install --claude           # Claude Code only
+ellie install --codex --claude   # both agents
+```
+
+**Restart each configured agent after installation.** In Codex, open `/hooks`
+and review and trust Ellie's commands. Hook trust is a Codex permission step;
+Ellie does not bypass it. Older clients may need an update. `ellie doctor`
+checks registration and support; registration alone does not prove that hooks
+have fired or that capture has completed.
+
+On its first run, uv may download the requested Python version. To use a Python
+you already have, replace `--python 3.10` with its path, for example
+`--python /opt/homebrew/bin/python3.14` on a Mac with that interpreter installed.
+Keep the install command running until it finishes; Ctrl-Z suspends it.
+
+Alternatively, install the checkout with `python3.10 -m pip install .`.
+Then run `ellie install` and restart the agents as above. Setuptools is only a
+build dependency. These instructions install from this repository; a public
+PyPI release is a separate publishing step.
+
+The agent setup uses a stdio MCP server with an absolute Python interpreter path,
 adds a marked instruction block, and creates editable extraction guidance.
 Existing files get a one-time `.ellie-backup` before modification. Reinstalling
 does not duplicate blocks or overwrite your extraction guidance.
 
-Installation also adds user-level lifecycle hooks for ordinary Codex and Claude
-sessions. Restart the agent after installing. In Codex, open `/hooks` and review
-and trust Ellie's commands; the installer does not bypass native hook trust.
-Older clients may need an update. `ellie doctor` checks registration and support.
-
 For Claude, the installer prints an optional permissions.allow setting. It
 does not grant blanket permissions automatically.
+
+### Upgrade an existing installation
+
+From the Ellie checkout:
+
+```sh
+git pull --ff-only
+uv tool install --force --reinstall --python 3.10 .
+ellie install
+ellie --version
+ellie doctor
+```
+
+Run **both** the package update and `ellie install`: an updated executable does
+not refresh an older agent configuration by itself. The setup command updates
+MCP, hooks, and instructions while preserving existing memories and unrelated
+settings. Restart the agents and review any changed Codex hooks afterward.
+
+### Uninstall agent integration
 
 ```sh
 ellie uninstall
 ```
 
-Uninstall removes Ellie's MCP registrations and instruction blocks. It keeps
-project memories, transcripts, and unrelated agent configuration.
+Uninstall removes Ellie's MCP registrations, owned hooks, and instruction blocks.
+It keeps project memories, transcripts, and unrelated agent configuration.
 
 ## Quickstart
 
-In a Git repository:
+After setup, open your project and start an agent normally:
+
+```sh
+cd /path/to/your-project
+codex
+# Or run: claude
+```
+
+In the chat, say:
+
+> Use Ellie for this project. Create and load a workstream called `auth-refactor`
+> for this task, bind this conversation to it, and save important decisions,
+> results, and findings as we work.
+
+With trusted hooks and capture set to `auto` (the default), Ellie queues capture
+in the background as you work. You can also ask the agent to “save a handoff” to
+record the current state and next steps immediately through its memory tools.
+Use a different workstream in each chat when working on parallel tasks.
+
+For a new task that needs specific past context, say:
+
+> Use only conversation CONVERSATION_ID for context. Create and load a new
+> workstream called `retry-fix`, and bind this conversation to it.
+
+You can find conversation IDs in `ellie conversations` or the UI's
+**Conversations** tab. See [Selecting context](#selecting-context) for examples.
+
+### Start with the CLI picker instead
+
+In your project, create a workstream and launch with selected context:
 
 ```sh
 ellie new auth-refactor -d 'Move auth to PKCE' \
@@ -74,15 +150,29 @@ memory as Codex. Always verify remembered facts against current code.
 
 ## Browse your memory
 
+Start the dashboard in a separate terminal, preferably from your project:
+
 ```sh
 ellie ui
 ```
 
-Opens a local HTML dashboard at `http://127.0.0.1:8767`. Pick a project in the
-sidebar, filter by workstream or item type, and search decisions, results,
-findings, questions, and notes. Click a card for all its fields, or open a full
-memory from the Overview. Activity shows saved logs and capture records.
-Archived workstreams are available through the Archived checkbox.
+It prints `Ellie dashboard: http://127.0.0.1:8767` and opens your browser.
+If the browser does not open, visit [the local dashboard](http://127.0.0.1:8767/).
+
+**Keep that terminal running.** Closing it, pressing Ctrl-C, or suspending it
+with Ctrl-Z stops the page from being served. Installing Ellie or enabling
+capture hooks does not start the dashboard automatically. Memory capture works
+without the dashboard open.
+
+To browse saved knowledge:
+
+1. Pick a project in the sidebar.
+2. Use **Overview** for goals, current state, and next steps.
+3. Use **All memories**, search, and the workstream/type filters to find items.
+   Click a card for its full fields and conversation source. Enable **Archived**
+   to include archived workstreams.
+4. Use **Activity** for saved logs and capture records.
+5. Use **Conversations** to choose historical context for your next task.
 
 Open **Conversations** to see which chat produced each item. Select one or more
 conversations and choose **Use selected conversations**, or **Use only this
@@ -107,8 +197,20 @@ ellie ui --port 0            # choose a free port
 ellie ui --port 9000         # choose a specific port
 ```
 
-After updating this checkout, upgrade an existing tool installation with
-`uv tool install --force --python 3.10 .` (or select an installed Python 3.10+).
+### If the UI does not open or looks empty
+
+- **Connection refused:** run `ellie ui` and keep that terminal running, then
+  refresh the browser. Opening the URL alone does not start a server.
+- **Port already in use:** run `ellie ui --port 0` and open the URL it prints;
+  that address will use a different port from 8767.
+- **No memories yet:** the UI displays saved knowledge, not every raw chat.
+  Work in an agent with Ellie enabled, or use `ellie backfill` to review older
+  sessions. Check `ellie status` from the project and `ellie where` to confirm
+  the memory root. The UI and agents must use the same `ELLIE_HOME` if overridden.
+- **Blank capture timestamps:** check `ellie doctor`, restart the agents after
+  `ellie install`, and review Codex `/hooks`. A running dashboard does not prove
+  that capture hooks are active. Use `ellie capture --wait` for an explicit retry;
+  it is separate from verifying automatic capture.
 
 ## Selecting context
 
