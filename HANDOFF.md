@@ -1,5 +1,22 @@
 # Handoff
 
+## Required commit attribution (2026-11-20)
+
+All commits made for this project must be attributed to the user's personal
+GitHub account, prakx1. Use the repository's configured Git identity. Never
+override the author or committer with Codex, codex@localhost, or another bot
+identity. If a fresh checkout has no identity, resolve the user's authenticated
+GitHub profile instead of inventing an author; keep any configuration local to
+the intended repository.
+
+The original 13 commits were repaired to use the user's GitHub-linked identity,
+preserving each commit's files, message, author date, and commit date. This
+changes commit IDs, so milestone hashes recorded below predate that repair.
+A verified original-history bundle and old-to-new mapping are kept locally
+under .git; they are not pushed. The repair was published with an explicit
+force-with-lease check against the original remote tip. Runtime code and
+private memory are unchanged by this attribution correction.
+
 ## README update (2026-11-20)
 
 Expanded installation prerequisites, clone/setup commands, agent-specific setup,
