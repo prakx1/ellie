@@ -53,7 +53,7 @@ import json, os, pathlib, sys, time
 args=sys.argv[1:]
 agent=pathlib.Path(sys.argv[0]).name
 if '--help' in args:
-    print('--ephemeral --ignore-user-config --ignore-rules --output-schema --disable --fork-session --no-session-persistence --json-schema --tools --strict-mcp-config --safe-mode' if os.environ.get('FAKE_MODE') != 'old-version' else 'old help')
+    print('--ephemeral --ignore-user-config --ignore-rules --output-schema --disable --skip-git-repo-check --fork-session --no-session-persistence --json-schema --tools --strict-mcp-config --safe-mode' if os.environ.get('FAKE_MODE') != 'old-version' else 'old help')
     raise SystemExit(0)
 if args[:3] == ['mcp','list','--json']:
     print('[{"name":"external-server"}]')

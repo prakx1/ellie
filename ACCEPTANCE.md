@@ -1,5 +1,10 @@
 # Ellie v1 acceptance review
 
+Current follow-up: [0.3.5 verification](QA_REPORT.md) records the expanded test
+matrix, real native Codex/local-responder checks, real-browser verification and
+four additional fixes. The dated v1 results below remain historical; the newer
+report states which live-provider and public-release clauses are still open.
+
 Date: 2026-11-18. All eight implementation/review milestones are complete.
 The supplied `spec.md` remains unchanged.
 

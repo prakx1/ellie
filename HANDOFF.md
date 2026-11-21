@@ -17,6 +17,58 @@ under .git; they are not pushed. The repair was published with an explicit
 force-with-lease check against the original remote tip. Runtime code and
 private memory are unchanged by this attribution correction.
 
+## Full feature verification (0.3.5, 2026-11-22)
+
+The user requested a thorough check of every feature and bugs. See QA_REPORT.md
+for the feature matrix, four reproduced/fixed defects, exact scope and remaining
+provider/public-release checks. The original spec.md is unchanged.
+
+Final full suites: 141 tests pass on source Python 3.10.20 (176.1s), source
+3.15.0a7 preview (185.0s), a clean installed Python 3.10 wheel (174.4s), and the
+installed user executable on 3.14.3 with temporary profiles (86.3s). Final
+native/MCP assertion refinements were rerun separately. No runtime code changes
+followed the full suites. No authenticated external model calls or real-profile
+development/tests were performed; no credentials or private memory were copied.
+
+Fixed: missing Codex --skip-git-repo-check for the temporary extraction cwd;
+agent-filtered backfill inspecting unrelated pending jobs; previews selecting
+Markdown section labels instead of contents; and duplicate/incomplete Markdown
+summary blocks causing stale or hidden current state. Summary writes now safely
+contain headings/fences and replace old duplicates on explicit updates, while
+unchanged parsing and historical session snapshots remain lossless.
+
+New test_native_codex.py uses the actual CLI with a loopback-only canned SSE
+responder and no authentication. It verifies fresh ephemeral extraction,
+strict schema submission/JSON output, native session discovery, ephemeral
+forking, unchanged source bytes and no extra rollout files. This reproduced a
+real startup failure that fake executables had hidden. The full native Claude
+flag set and Codex config/features also parse with real installed CLIs.
+
+Real Codex + Claude installation in fresh temporary profiles is idempotent;
+uninstall twice preserves unrelated MCP servers and stored memory. Setup to
+first dry-run launch took 7.04s. No user repository files were changed by app
+paths. All 31 installed runtime files match the tested 0.3.5 wheel, metadata
+reports zero runtime dependencies, and schema remains 11 required properties.
+
+Real Chrome verification now supersedes the earlier unavailable-browser notes:
+checked previews, historical question details, scoped search, no-history,
+startup commands, copy success, project switching/reset, activity, manual and
+automatic refresh, and 1440px/390px layouts. Screenshots were visually inspected;
+no application console errors or page overflow occurred. Viewer read-only
+Markdown/registry hashes stayed unchanged, including after a separate synthetic
+writer tested refreshing newly saved state without widening source scope.
+
+Current isolated artifacts/runner:
+/private/var/folders/93/djm21yqn3979_wbdq5vpv4_c0000gq/T/ellie-qa-2vgwx8w3
+run.py isolates profiles/caches; installed-run.py also removes PYTHONPATH.
+dist/ellie-0.3.5-py3-none-any.whl SHA256:
+5682f9681eb5610fc436646475fa24cfbf0f421dcaa12c9c38144cf44b52a955.
+install_smoke.py and UI fixture/screenshots remain local, outside Git. QA-only
+browser tabs and fixture servers were closed. The actual user executable was
+upgraded separately using isolated profile/cache variables. Restart active
+agents/viewer to load it. Real pending jobs were not replayed; authenticated
+provider behavior, model quality/live recap and PyPI publishing remain open.
+
 ## Capture transport fix and fresh reads (0.3.4, 2026-11-21)
 
 A read-only operational check found live memory writes continuing while

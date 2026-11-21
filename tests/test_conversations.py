@@ -46,6 +46,37 @@ class ConversationTests(IsolatedTest):
         self.assertEqual(row["title"], "Deployment pipeline configured")
         self.assertEqual(row["description"], "Deployment pipeline configured")
 
+    def test_preview_skips_markdown_section_labels_and_reads_their_content(self):
+        self.memory()
+        service = MemoryService(self.store)
+        self.addCleanup(service.close)
+        with service.in_session("chat-a"):
+            service.set_goal(self.project, "work", "## Goal\n- Migrate login to PKCE", "Legacy login removed")
+            service.handoff(self.project, "work", "## Current state\n- PKCE login works",
+                            "## Next steps\n1. Add retry metrics", "Work completed")
+        row = service.conversations(self.project)["conversations"][0]
+        self.assertEqual(row["title"], "Migrate login to PKCE")
+        self.assertEqual(row["current_state"], "PKCE login works")
+        self.assertEqual(row["next_steps"], "Add retry metrics")
+
+    def test_replacing_a_markdown_handoff_cannot_leave_stale_duplicate_state(self):
+        self.memory()
+        service = MemoryService(self.store)
+        self.addCleanup(service.close)
+        with service.in_session("chat-a"):
+            service.handoff(self.project, "work", "## Current state\nEarlier state",
+                            "## Next steps\nEarlier next step", "First handoff")
+        with service.in_session("chat-b"):
+            service.handoff(self.project, "work", "Latest state", "Latest next step", "Second handoff")
+        document = self.store.read_memory(self.project, "work")
+        self.assertEqual(document.get_section("Current state").strip(), "Latest state")
+        self.assertEqual(document.get_section("Next steps").strip(), "Latest next step")
+        with service.in_session("reader"):
+            service.bind(self.project, ["work"], conversations=["chat-a"])
+            text = service.load(self.project, ["work"])["briefing"]
+            self.assertIn("Earlier state", text)
+            self.assertNotIn("Latest state", text)
+
     def test_saved_summary_labels_legacy_conversations_instead_of_the_opening_message(self):
         self.memory()
         opener = "Can you make the sample repository public?"

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from . import Discovery, Session, session_id, timestamp
 
-REQUIRED_FLAGS = ("--ephemeral", "--ignore-user-config", "--ignore-rules", "--output-schema", "--disable")
+REQUIRED_FLAGS = ("--ephemeral", "--ignore-user-config", "--ignore-rules", "--output-schema", "--disable", "--skip-git-repo-check")
 
 
 def root() -> Path:
@@ -120,7 +120,7 @@ def find_ancestor(id: str, *, limit_bytes: int | None = None) -> Session:
 
 
 def command(executable: str, id: str | None, directory: Path, schema: Path, output: Path, servers: list[str]) -> list[str]:
-    args = [executable, "exec", "--cd", str(directory), "--ephemeral", "--ignore-user-config", "--ignore-rules"]
+    args = [executable, "exec", "--cd", str(directory), "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "--ignore-rules"]
     for feature in ("hooks", "plugins", "apps", "shell_tool", "multi_agent", "multi_agent_v2"):
         args.extend(["--disable", feature])
     for config in ('sandbox_mode="read-only"', 'approval_policy="never"', 'web_search="disabled"'):

@@ -11,6 +11,7 @@ import unicodedata
 ITEM_SECTIONS = {"D": "Decisions", "R": "Results", "F": "Findings", "Q": "Open questions", "N": "Notes"}
 PROJECT_SECTIONS = ("Overview", "Conventions", "Decisions", "Findings", "Open questions", "Notes", "Log")
 WORKSTREAM_SECTIONS = ("Goal", "Current state", "Next steps", "Decisions", "Results", "Findings", "Open questions", "Notes", "Log")
+SUMMARY_SECTIONS = {"Goal", "Current state", "Next steps", "Overview", "Conventions"}
 ITEM_HEADER = re.compile(r"^[ \t]*###[ \t]+([DRFQN][0-9]+)(?:[ \t]+[·-][ \t]+|[ \t]*:[ \t]+)([^\r\n]+?)[ \t]*$")
 FIELD = re.compile(r"^([ \t]*-[ \t]+)([^:\r\n]+?)([ \t]*:[ \t]*)([^\r\n]*)(\r?\n)?$")
 
@@ -48,6 +49,30 @@ def _headings(text: str, level: int) -> list[tuple[int, int, str]]:
                 result.append((offset, offset + len(line), match.group(2).strip()))
         offset += len(line)
     return result
+
+
+def _summary_content(title: str, content: str) -> str:
+    """Keep caller Markdown inside its section, including incomplete code blocks."""
+    lines, fence, has_content = [], None, False
+    for line in content.splitlines(keepends=True):
+        match = re.match(r"(`{3,}|~{3,})", line.lstrip(" \t"))
+        if match:
+            marker = match.group(1)
+            if fence is None:
+                fence = marker
+            elif marker[0] == fence[0] and len(marker) >= len(fence):
+                fence = None
+        elif fence is None:
+            heading = re.match(r"([ \t]*)(#{1,3})[ \t]+([^\r\n]+)", line)
+            if heading:
+                if not has_content and heading.group(3).strip().casefold() == title.casefold():
+                    continue
+                line = line[:heading.start(2)] + "####" + line[heading.end(2):]
+        lines.append(line)
+        has_content |= bool(line.strip())
+    if fence is not None:
+        lines.extend(["\n", fence, "\n"])
+    return "".join(lines)
 
 
 @dataclass
@@ -240,6 +265,17 @@ class Memory:
 
     def set_section(self, title: str, content: str) -> None:
         one_line(title)
+        if title in SUMMARY_SECTIONS:
+            content = _summary_content(title, content)
+            matches = [span for span in self._sections() if span[3] == title]
+            if matches:
+                # Replacing state also removes stale duplicate blocks left by
+                # older writers. Parsing alone remains byte-exact.
+                for start, body, end, _ in reversed(matches[1:]):
+                    self.text = self.text[:start] + self.text[end:]
+                _, body, end, _ = matches[0]
+                self.text = self.text[:body] + content.rstrip("\r\n") + "\n\n" + self.text[end:]
+                return
         for _, body, end, found in self._sections():
             if found == title:
                 self.text = self.text[:body] + content.rstrip("\r\n") + "\n\n" + self.text[end:]

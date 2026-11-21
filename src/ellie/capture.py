@@ -413,6 +413,9 @@ def plan_jobs(store, project: str, *, since: str = "7d", session_id: str | None 
     found = discover_project(store, project, agent=agent)
     registry = store.read_sessions(project)
     all_pending = [job for job in store.list_pending() if job.get("project") == project]
+    if agent:
+        all_pending = [job for job in all_pending if job.get("agent") == agent
+                       or agent == "claude" and job.get("agent") == "claude-code"]
     pending = [job for job in all_pending if job.get("ended") or job.get("incremental")]
     jobs, claimed, errors = [], set(), []
     for job in all_pending:

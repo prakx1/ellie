@@ -1,5 +1,24 @@
 # Decisions
 
+## Full verification and Markdown state integrity (0.3.5, 2026-11-22)
+
+- Add a real Codex regression using an unauthenticated loopback SSE responder.
+  It exercises the exact extraction command, strict schema, output files and
+  ephemeral/native-fork history without real profiles or external model calls.
+  This exposed the missing --skip-git-repo-check needed for temporary working
+  directories. Read-only sandbox and disabled tools/MCP remain in place.
+- Filter pending backfill jobs by the requested agent, not just discovery.
+  An unrelated agent's retry must not make a successful filtered run fail.
+- Preview labels skip Markdown section headings and read their actual content.
+  Summary writers strip redundant wrapper headings, nest other headings safely
+  and close unfinished fences. Explicit summary replacement also removes stale
+  duplicates from older writers. Parsing without mutation remains lossless;
+  original per-conversation snapshots remain readable.
+- Keep authenticated provider/model quality checks separate from deterministic
+  CLI/protocol tests. A real CLI with canned local responses is stronger than a
+  fake executable for configuration/startup coverage, but does not prove a live
+  model's judgment or the recovery of the user's existing private capture jobs.
+
 ## Codex extraction transport and fresh reads (0.3.4, 2026-11-21)
 
 - Codex validates transport configuration even for disabled MCP servers.

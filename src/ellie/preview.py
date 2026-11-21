@@ -29,7 +29,10 @@ def first_line(value):
     if not isinstance(value, str):
         return ""
     for line in value.splitlines():
-        line = re.sub(r"^\s*(?:#{1,6}\s+|[-*+]\s+|\d+[.)]\s+)", "", line).replace("**", "")
+        line = re.sub(r"^\s*(?:#{1,6}\s+|[-*+]\s+|\d+[.)]\s+)", "", line).replace("**", "").strip()
+        label = line.casefold().rstrip(":")
+        if label in {"goal", "current state", "next steps", "overview", "conventions"}:
+            continue
         if text(line) and not line.casefold().startswith("done when:"):
             return text(line)
     return ""

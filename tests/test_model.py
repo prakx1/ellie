@@ -71,6 +71,23 @@ class ModelTests(unittest.TestCase):
         memory.set_section("Goal", "New goal")
         self.assertEqual(memory.render(), SAMPLE.replace("Build memory.", "New goal"))
 
+    def test_explicit_summary_replacement_repairs_legacy_duplicate_sections(self):
+        raw = Memory.new("work").render().replace("## Current state\n", "## Current state\nOlder state\n\n## Current state\nStale state\n")
+        memory = Memory.parse(raw)
+        self.assertEqual(memory.render(), raw)
+        memory.set_section("Current state", "Latest state")
+        self.assertEqual(memory.get_section("Current state").strip(), "Latest state")
+        self.assertEqual(memory.render().count("## Current state\n"), 1)
+        self.assertIn("## Next steps\n", memory.render())
+
+    def test_unclosed_summary_fence_cannot_hide_other_sections(self):
+        memory = Memory.new("work")
+        memory.set_section("Current state", "```markdown\n## Example\nUnfinished block")
+        memory.set_section("Next steps", "Continue testing")
+        self.assertIn("Unfinished block", memory.get_section("Current state"))
+        self.assertEqual(memory.get_section("Next steps").strip(), "Continue testing")
+        self.assertIn("Decisions", memory.sections)
+
     def test_new_project_and_workstream_sections(self):
         project = Memory.new("project")
         self.assertNotIn("Goal", project.sections)

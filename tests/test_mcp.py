@@ -46,9 +46,10 @@ class MCPTests(IsolatedTest):
             self.call(16, "recall", query="iframe", types=["R"]),
             self.call(17, "get", ids=["D1", self.project + ":F1"]),
             self.request(18, "ping"), self.request(19, "resources/list"), self.request(20, "prompts/list"),
+            self.call(21, "privacy", action="status"),
         ]
         responses = self.exchange(messages)
-        self.assertEqual(len(responses), 20)
+        self.assertEqual(len(responses), 21)
         by_id = {response["id"]: response for response in responses}
         self.assertEqual(by_id[1]["result"]["protocolVersion"], "2025-06-18")
         tools = by_id[2]["result"]["tools"]
@@ -66,6 +67,7 @@ class MCPTests(IsolatedTest):
         self.assertEqual(by_id[16]["result"]["structuredContent"]["items"][0]["id"], "R1")
         self.assertEqual(self.store.get_item(self.project, "D1")[1].fields["source"], "codex · live")
         self.assertEqual(self.store.get_item(self.project, "F1")[0], "project")
+        self.assertFalse(by_id[21]["result"]["structuredContent"]["paused"])
 
     def test_errors_do_not_crash_or_corrupt_memory(self):
         self.memory()

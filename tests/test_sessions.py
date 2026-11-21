@@ -30,7 +30,7 @@ class SessionTests(IsolatedTest):
                                            directory / "out.json", sorted(names))
         overrides = []
         for index, value in enumerate(command[:-1]):
-            if value == "-c" and command[index + 1].startswith(("mcp_servers.", "mcp_servers=")):
+            if value in ("-c", "--disable"):
                 overrides.extend([value, command[index + 1]])
         # An empty temporary profile reproduces exec --ignore-user-config's
         # missing transport definitions. This command never starts a model.
@@ -44,6 +44,15 @@ class SessionTests(IsolatedTest):
             path = Path(row["transport"]["command"])
             self.assertEqual(path.parent, directory)
             self.assertFalse(path.exists())
+
+    def test_claude_accepts_the_full_safe_extraction_flag_set(self):
+        executable = shutil.which("claude")
+        if not executable:
+            self.skipTest("Claude is not installed")
+        from ellie.extract import SCHEMA
+        command = adapter("claude").command(executable, None, SCHEMA)
+        result = subprocess.run([*command, "--help"], cwd=self.root, capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_both_codex_generations_and_claude_count_human_prompts(self):
         write_session(self, "codex")

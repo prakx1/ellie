@@ -58,6 +58,21 @@ class HistoricalTests(IsolatedTest):
         self.assertIn(claude.id, result.stdout)
         self.assertEqual(self.store.read_sessions(self.project)[claude.id]["agent"], "claude")
 
+    def test_agent_filtered_backfill_leaves_other_agents_pending_jobs_alone(self):
+        write_session(self, "codex")
+        other = write_session(self, "claude")
+        pending = {"run_id": "other-agent-retry", "project": self.project, "agent": "claude",
+                   "session_id": other.id, "cwd": other.cwd, "started": other.started.isoformat(),
+                   "ended": other.ended.isoformat(), "memories": ["work"], "capture": "failed"}
+        self.store.write_pending(pending["run_id"], pending)
+        output = io.StringIO()
+        self.assertEqual(backfill(self.service(), self.project, agent="codex", yes=True, output=output), 0,
+                         output.getvalue())
+        self.assertNotIn(other.id, output.getvalue())
+        self.assertEqual(self.store.read_pending(pending["run_id"]), pending)
+        calls = [json.loads(line) for line in Path(os.environ["FAKE_CALLS"]).read_text().splitlines()]
+        self.assertEqual([call["agent"] for call in calls], ["codex"])
+
     def test_doctor_success_with_fake_login_and_real_local_config(self):
         with patch("ellie.install.run_cli", return_value=False):
             install(codex=True, claude=True, store=self.store)
