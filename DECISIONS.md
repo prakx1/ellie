@@ -1,5 +1,17 @@
 # Decisions
 
+## Conversation labels (2026-11-21)
+
+- The live picker screenshot confirmed the first-reply menu works in Codex,
+  but exposed that a casual opening message outranked a saved session summary.
+  Conversation catalogs now prefer the existing handoff/capture summary and
+  use the opening message only until a summary exists. This changes labels
+  across chat pickers, CLI, MCP and the dashboard through list_conversations.
+- Derive labels when reading instead of rewriting stored conversations. Old
+  captures improve without a migration, changed IDs, or another model call;
+  the strict extraction schema remains unchanged. Previously displayed menus
+  retain their frozen numbers and labels until a new chat is started.
+
 ## Memory picker in ordinary chats (2026-11-21)
 
 - Opening Codex/Claude normally should require no Ellie command in the chat.

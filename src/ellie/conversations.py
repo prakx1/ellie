@@ -77,7 +77,7 @@ def list_conversations(store, project: str) -> list[dict]:
     for id, record in records.items():
         ids = sorted({item for item, sessions in belonging.items() if id in sessions})
         names = sorted(set(record.get("memories", [])))
-        result.append({"id": id, "title": record.get("title") or record.get("summary") or "Conversation " + id[:12],
+        result.append({"id": id, "title": record.get("summary") or record.get("title") or "Conversation " + id[:12],
                        "summary": record.get("summary", ""), "agent": record.get("agent", "unknown"),
                        "started": record.get("started", ""), "ended": record.get("ended", ""),
                        "last_saved": record.get("last_saved", ""), "capture": record.get("capture", "live"),

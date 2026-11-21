@@ -17,6 +17,32 @@ under .git; they are not pushed. The repair was published with an explicit
 force-with-lease check against the original remote tip. Runtime code and
 private memory are unchanged by this attribution correction.
 
+## Conversation label fix (0.3.2, 2026-11-21)
+
+The user's screenshot shows the first-reply picker in Codex 0.171.0 after a
+normal greeting, confirming that the agent displayed the menu. It
+also exposes an old conversation's casual opening message as its label. No
+selection/load action or automatic extraction was demonstrated by that image.
+
+The cause is list_conversations preferring the stored opening-message title
+over a saved handoff/capture summary. It now prefers the summary and retains
+the opener only as a fallback. The shared catalog fixes chat, CLI, MCP and UI
+labels without rewriting old memory or changing IDs, bindings, extraction
+schema or model calls. An already displayed picker keeps its frozen labels;
+start a new chat to receive the improved ones. README explains this distinction
+between a conversation label and a workstream name.
+
+The regression reproduced the exact label-precedence failure before the fix,
+then passed through MemoryService.conversations with unchanged session data.
+The real hook subprocess regression checks summary labels for both agents.
+All 126 tests pass on Python 3.10.20 (217.1s) and 3.15.0a7 (227.6s); the final
+synthetic-label regressions also pass on 3.14.3. The isolated installed 3.10
+wheel passes both hook entrypoints and MCP initialization with no model calls
+or runtime dependencies. The user's executable was separately upgraded to
+0.3.2 with isolated profiles; all 30 runtime files match the tested wheel.
+No real agent configuration or private memory was changed. Tests use invented
+conversation content, not the user's session files or copied memory.
+
 ## Chat memory picker (0.3.1, 2026-11-21)
 
 The user wants a picker inside ordinary Codex/Claude chats without typing an

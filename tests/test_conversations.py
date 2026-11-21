@@ -3,6 +3,22 @@ from tests.support import IsolatedTest
 
 
 class ConversationTests(IsolatedTest):
+    def test_saved_summary_labels_legacy_conversations_instead_of_the_opening_message(self):
+        self.memory()
+        opener = "Can you make the sample repository public?"
+        summary = "Publish the sample app and configure the GitHub repository."
+        self.store.update_sessions(self.project, lambda data: data.update({"chat-a": {"title": opener}}))
+        service = MemoryService(self.store)
+        self.addCleanup(service.close)
+        self.assertEqual(service.conversations(self.project)["conversations"][0]["title"], opener)
+        with service.in_session("chat-a"):
+            service.handoff(self.project, "work", "Repository published", "Build the dashboard", summary)
+        before = self.store.read_sessions(self.project)
+        row = service.conversations(self.project)["conversations"][0]
+        self.assertEqual(row["title"], summary)
+        self.assertEqual(row["id"], "chat-a")
+        self.assertEqual(self.store.read_sessions(self.project), before)
+
     def test_historical_versions_do_not_leak_later_answers_or_status(self):
         self.memory()
         id = self.store.add_item(self.project, "work", "Q", "Which provider?", {"status": "open"}, session="chat-a")

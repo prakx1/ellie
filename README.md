@@ -114,7 +114,11 @@ m) More choices
 ```
 
 The labels above are examples from a project with saved memory. Reply with a
-number, several numbers, or a name. Conversation choices load only those source
+number, several numbers, or a name. Conversation labels prefer the summary
+saved by handoff or capture; the opening message is a fallback until a summary
+exists. A conversation label is separate from its workstream name. Labels are
+fixed for an already displayed picker; a new chat gets the latest labels.
+Conversation choices load only those source
 chats; other conversations stay excluded. Start fresh excludes past memory while
 keeping the current chat's write destination. Workstream choices continue the
 named workstream with its usual shared project context. The agent then continues

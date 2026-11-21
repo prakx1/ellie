@@ -32,7 +32,8 @@ class HookTests(IsolatedTest):
         self.store.add_item(self.project, "work", "N", "Login decision", {},
                             session="past-login", body="Full login history stays unloaded")
         self.store.update_sessions(self.project, lambda data: data["past-login"].update(
-            {"title": "Fix login retries", "agent": "codex", "started": "2026-11-20T10:00:00Z"}))
+            {"title": "hello, can we start?", "summary": "Fix login retries", "agent": "codex",
+             "started": "2026-11-20T10:00:00Z"}))
         self.store.add_item(self.project, "project", "N", "Shared private detail", {})
         for agent in ("codex", "claude"):
             with self.subTest(agent=agent):
@@ -42,6 +43,7 @@ class HookTests(IsolatedTest):
                     self.assertIn("[ellie memory picker]", context)
                     self.assertIn("0) Start fresh", context)
                     self.assertIn("1) Conversation: Fix login retries", context)
+                    self.assertNotIn("hello, can we start?", context)
                     self.assertIn("past-login", context)
                     self.assertIn("Workstream: work", context)
                     self.assertIn("wait for the user's choice", context)
