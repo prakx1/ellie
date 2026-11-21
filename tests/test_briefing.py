@@ -1,12 +1,24 @@
 import io
 
-from ellie.briefing import pick_memories, render_memory, select_history
+from ellie.briefing import pick_conversations, pick_memories, render_memory, select_history
 from ellie.model import Item, Memory
 from ellie.service import MemoryService
 from tests.support import IsolatedTest
 
 
 class RenderingTests(IsolatedTest):
+    def test_conversation_picker_explains_saved_contents_before_selection(self):
+        self.memory()
+        self.store.add_item(self.project, "work", "N", "Configure deployment", {}, session="chat-a")
+        service = MemoryService(self.store)
+        self.addCleanup(service.close)
+        with service.in_session("chat-a"):
+            service.handoff(self.project, "work", "Deploy is ready", "Publish the homepage", "Work completed")
+        output = io.StringIO()
+        self.assertEqual(pick_conversations(service, self.project, input_fn=lambda _: "1", output=output), ["chat-a"])
+        self.assertIn("Covers: Configure deployment", output.getvalue())
+        self.assertIn("Next: Publish the homepage", output.getvalue())
+
     def test_filtered_items_log_limit_and_order(self):
         memory = Memory.new("auth", goal="Ship", done_when="Tests pass")
         memory.set_section("Current state", "In progress")

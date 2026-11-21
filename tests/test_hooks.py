@@ -52,6 +52,24 @@ class HookTests(IsolatedTest):
                     self.assertLessEqual(len(context), 7000)
         self.assertFalse(Path(os.environ["FAKE_CALLS"]).exists())
 
+    def test_picker_shows_what_a_memory_covers_and_its_next_step(self):
+        self.store.add_item(self.project, "work", "N", "GitHub deployment setup", {}, session="past-work")
+        self.store.add_item(self.project, "work", "N", "Publish the product website", {}, session="past-work")
+        service = MemoryService(self.store)
+        self.addCleanup(service.close)
+        with service.in_session("past-work"):
+            service.handoff(self.project, "work", "Deployment pipeline configured", "Add the homepage", "Work completed")
+        self.store.update_sessions(self.project, lambda data: data["past-work"].update({"title": "hello"}))
+        for agent in ("codex", "claude"):
+            session = write_session(self, agent)
+            context = self.hook(session, "SessionStart")["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("Covers: GitHub deployment setup; Publish the product website", context)
+            self.assertIn("State: Deployment pipeline configured", context)
+            self.assertIn("Next: Add the homepage", context)
+            self.assertIn("Show each option's Covers/State/Next preview", context)
+            self.assertNotIn("Conversation: Work completed", context)
+            self.assertNotIn("Conversation: hello", context)
+
     def test_a_chosen_scope_is_preserved_without_another_picker_on_resume(self):
         self.store.add_item(self.project, "work", "N", "Login history", {},
                             session="past-login", body="Selected login body")

@@ -24,7 +24,7 @@ def tool(name, description, properties, required):
 
 TOOLS = [
     tool("privacy", "When asked, pause/resume saving, exclude/include a conversation, or disable Ellie-owned archives; status is read-only.", {"action": {"type": "string", "enum": ["status", "pause", "resume", "exclude", "include"]}, "conversation": TEXT, "archives": {"type": "string", "enum": ["filtered", "off"]}}, []),
-    tool("conversations", "Before selecting context, list this project's conversations, titles, source item IDs and capture status.", {}, []),
+    tool("conversations", "Before selecting context, list conversations with descriptions, topics, saved state/next steps, source item IDs and capture status. Show previews in the picker so users know what each choice covers.", {}, []),
     tool("bind", "Bind the current session_id to write workstreams and optional source conversations; [] means no past conversations.", {"memories": TEXTS, "conversations": TEXTS}, ["session_id", "memories"]),
     tool("timeline", "After recall, inspect nearby items around an anchor ID or query, limited to selected conversations.", {"anchor": TEXT, "query": TEXT, "before": {"type": "integer", "minimum": 0, "maximum": 25}, "after": {"type": "integer", "minimum": 0, "maximum": 25}, "conversations": TEXTS}, []),
     tool("status", "Use at the start of work to discover this project's memories and uncaptured sessions.", {}, []),
@@ -76,7 +76,7 @@ class Server:
                     self.service.agent = "codex" if "codex" in name else "claude-code" if "claude" in name else "you"
                 result = {"protocolVersion": params.get("protocolVersion", "2024-11-05"), "capabilities": {"tools": {}},
                           "serverInfo": {"name": "ellie", "version": __version__},
-                          "instructions": "At startup, if context is unselected, use status/conversations to show a numbered memory picker with Start fresh; wait for a choice before loading or working. Respect existing selections. Recall before choosing an approach, record decisions/results/findings, and handoff when wrapping up. Verify old memory against code; never save secrets."}
+                          "instructions": "At startup, if context is unselected, use status/conversations to show a numbered memory picker with Covers descriptions, topics, state/next steps and Start fresh; wait for a choice before loading or working. Show previews, not just labels. Respect existing selections. Recall before choosing an approach, record decisions/results/findings, and handoff when wrapping up. Verify old memory against code; never save secrets."}
             elif method == "ping":
                 result = {}
             elif method == "tools/list":

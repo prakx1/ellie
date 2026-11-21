@@ -3,6 +3,49 @@ from tests.support import IsolatedTest
 
 
 class ConversationTests(IsolatedTest):
+    def test_conversation_preview_explains_saved_work_when_summary_is_generic(self):
+        self.memory()
+        self.store.add_item(self.project, "work", "F", "Configure GitHub deployment", {"detail": "Saved detail", "scope": "workstream"}, session="chat-a")
+        self.store.add_item(self.project, "work", "N", "Publish the project website", {}, session="chat-a")
+        self.store.update_sessions(self.project, lambda data: data["chat-a"].update(
+            {"title": "hello, can we start?", "summary": "Work completed"}))
+        service = MemoryService(self.store)
+        self.addCleanup(service.close)
+        row = service.conversations(self.project)["conversations"][0]
+        self.assertEqual(row["title"], "Configure GitHub deployment")
+        self.assertIn("Configure GitHub deployment", row["description"])
+        self.assertIn("Publish the project website", row["topics"])
+        self.assertNotIn("hello, can we start?", row["description"])
+
+    def test_preview_uses_the_conversations_own_goal_state_and_next_step(self):
+        self.memory()
+        service = MemoryService(self.store)
+        self.addCleanup(service.close)
+        with service.in_session("chat-a"):
+            service.set_goal(self.project, "work", "Move login to PKCE", "Legacy login removed")
+            service.handoff(self.project, "work", "PKCE login is working", "Remove the legacy endpoint", "Work completed")
+        with service.in_session("chat-b"):
+            service.set_goal(self.project, "work", "Fix billing retries", "No duplicate charges")
+            service.handoff(self.project, "work", "Billing worker deployed", "Check billing metrics", "Work completed")
+        before = self.store.read_sessions(self.project)
+        rows = {row["id"]: row for row in service.conversations(self.project)["conversations"]}
+        self.assertEqual(rows["chat-a"]["title"], "Move login to PKCE")
+        self.assertEqual(rows["chat-a"]["description"], "Move login to PKCE")
+        self.assertEqual(rows["chat-a"]["current_state"], "PKCE login is working")
+        self.assertEqual(rows["chat-a"]["next_steps"], "Remove the legacy endpoint")
+        self.assertNotIn("billing", str(rows["chat-a"]).casefold())
+        self.assertEqual(self.store.read_sessions(self.project), before)
+
+    def test_state_only_handoff_still_explains_the_conversation(self):
+        self.memory()
+        service = MemoryService(self.store)
+        self.addCleanup(service.close)
+        with service.in_session("chat-a"):
+            service.handoff(self.project, "work", "Deployment pipeline configured", "Publish the homepage", "Work completed")
+        row = service.conversations(self.project)["conversations"][0]
+        self.assertEqual(row["title"], "Deployment pipeline configured")
+        self.assertEqual(row["description"], "Deployment pipeline configured")
+
     def test_saved_summary_labels_legacy_conversations_instead_of_the_opening_message(self):
         self.memory()
         opener = "Can you make the sample repository public?"
@@ -10,7 +53,7 @@ class ConversationTests(IsolatedTest):
         self.store.update_sessions(self.project, lambda data: data.update({"chat-a": {"title": opener}}))
         service = MemoryService(self.store)
         self.addCleanup(service.close)
-        self.assertEqual(service.conversations(self.project)["conversations"][0]["title"], opener)
+        self.assertEqual(service.conversations(self.project)["conversations"][0]["title"], "Conversation chat-a")
         with service.in_session("chat-a"):
             service.handoff(self.project, "work", "Repository published", "Build the dashboard", summary)
         before = self.store.read_sessions(self.project)

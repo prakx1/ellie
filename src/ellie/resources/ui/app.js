@@ -287,6 +287,11 @@ function renderConversations() {
     card.append(label, el("code", "conversation-id", record.id),
       el("p", "muted", record.agent + " · " + shortDate(record.started) + " · " + record.items.length + " items · " + record.capture),
       el("p", "muted", record.memories.join(", ") || "No workstream yet"));
+    if (record.description) card.append(el("p", "context-text", "Covers: " + record.description));
+    if (record.topics?.length && !record.topics.every(topic => (record.description || "").includes(topic)))
+      card.append(el("p", "context-text", "Topics: " + record.topics.join("; ")));
+    if (record.current_state) card.append(el("p", "context-text", "State: " + record.current_state));
+    if (record.next_steps) card.append(el("p", "context-text", "Next: " + record.next_steps));
     if (!record.historical_versions) card.append(el("p", "legacy-note", "Older source: historical versions may be unavailable."));
     if (record.error) card.append(el("p", "error", record.error));
     card.append(button("Use only this conversation ↗", "conversation-use", () => useConversations([record.id])));

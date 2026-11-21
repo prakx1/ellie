@@ -6,6 +6,7 @@ import re
 from datetime import datetime, timezone
 
 from .model import Item
+from .preview import preview
 from .redact import redact
 
 
@@ -74,10 +75,25 @@ def list_conversations(store, project: str) -> list[dict]:
         for id in ids:
             records.setdefault(id, {})
     result = []
+    current_titles = {item.id: item.title for memory in store.iter_memories(project) for item in memory.items}
     for id, record in records.items():
         ids = sorted({item for item, sessions in belonging.items() if id in sessions})
         names = sorted(set(record.get("memories", [])))
-        result.append({"id": id, "title": record.get("summary") or record.get("title") or "Conversation " + id[:12],
+        titles = []
+        for item_id in ids:
+            snapshot = record.get("item_snapshots", {}).get(item_id)
+            if snapshot:
+                try:
+                    titles.append(Item(snapshot["raw"], memory=snapshot["memory"]).title)
+                    continue
+                except (KeyError, TypeError, ValueError):
+                    pass
+            if item_id in current_titles:
+                titles.append(current_titles[item_id])
+        sections = {key: "\n".join(saved.get(key, "") for saved in record.get("context", {}).values())
+                    for key in ("Goal", "Current state", "Next steps")}
+        details = preview(record.get("summary", ""), titles, sections=sections, fallback="Conversation " + id[:12])
+        result.append({"id": id, **details,
                        "summary": record.get("summary", ""), "agent": record.get("agent", "unknown"),
                        "started": record.get("started", ""), "ended": record.get("ended", ""),
                        "last_saved": record.get("last_saved", ""), "capture": record.get("capture", "live"),

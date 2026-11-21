@@ -1,5 +1,24 @@
 # Decisions
 
+## Explain memory contents before selection (0.3.3, 2026-11-21)
+
+- A renamed label alone does not tell the user what a conversation covers.
+  Catalogs now include a bounded description, up to three saved topics, and
+  saved state/next step. Chat/terminal pickers and dashboard cards display them.
+  Agent instructions require visible previews even when native choice controls
+  hide descriptions. A native label and item count are insufficient.
+- Derive previews from a conversation's own saved goal, useful summary, item
+  snapshots and state. Ignore generic completion summaries. Use saved item
+  titles when no summary exists, and state when only a handoff exists. Never
+  use the opening chat message as the topic or invent a description when no
+  useful content is saved. Legacy items can provide titles when historical
+  snapshots are unavailable; existing historical-version warnings still apply.
+- Previews read through Store without rewriting old memory or calling a model.
+  They never borrow a workstream's newer global state for an older conversation.
+  Shared-project picker metadata stays general rather than exposing its item
+  titles before selection. Existing source bindings and frozen choice mappings
+  remain unchanged. An already displayed picker requires a new chat to refresh.
+
 ## Conversation labels (2026-11-21)
 
 - The live picker screenshot confirmed the first-reply menu works in Codex,

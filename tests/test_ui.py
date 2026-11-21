@@ -15,6 +15,17 @@ from tests.support import IsolatedTest
 
 
 class UITests(IsolatedTest):
+    def test_conversation_catalog_exposes_content_previews_over_http(self):
+        self.memory()
+        self.store.add_item(self.project, "work", "N", "Configure deployment", {}, session="chat-a")
+        self.store.update_sessions(self.project, lambda data: data["chat-a"].update(
+            {"title": "hello", "summary": "Work completed"}))
+        self.server()
+        row = self.get("/api/snapshot", project=self.project)["project"]["conversations"][0]
+        self.assertEqual(row["title"], "Configure deployment")
+        self.assertEqual(row["description"], "Configure deployment")
+        self.assertEqual(row["topics"], ["Configure deployment"])
+
     def test_conversation_filter_does_not_return_unselected_text_or_later_versions(self):
         self.memory()
         a = self.store.add_item(self.project, "work", "Q", "Alpha question", {"status": "open"}, session="chat-a")

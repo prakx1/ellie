@@ -1,3 +1,3 @@
 """Local project memory for coding agents; no runtime dependencies."""
 
-__version__ = "0.3.2"
+__version__ = "0.3.3"

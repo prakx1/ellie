@@ -108,16 +108,23 @@ as “Let's work on login.” Ellie asks the agent to show a picker in its first
 ```text
 Ellie 🐘 — Which memory should I use?
 0) Start fresh — no past memory
-1) Conversation: Fix login retries · Codex · Nov 20 · 8 items
+1) Conversation: Set up deployment · Codex · Nov 20 · 8 items
+   Covers: GitHub deployment setup; Publish the product website
+   State: Deployment pipeline configured
+   Next: Add the homepage
 2) Workstream: billing-bug · Double charge on retry
 m) More choices
 ```
 
 The labels above are examples from a project with saved memory. Reply with a
-number, several numbers, or a name. Conversation labels prefer the summary
-saved by handoff or capture; the opening message is a fallback until a summary
-exists. A conversation label is separate from its workstream name. Labels are
-fixed for an already displayed picker; a new chat gets the latest labels.
+number, several numbers, or a name. Each choice shows what the memory covers,
+up to three saved topics, and its state and next step when available. These
+previews use that conversation's own saved goal, summary and item titles,
+including historical snapshots. Generic summaries such as “Work completed”
+do not become the topic. The opening chat message is never used as its topic;
+when there is no useful saved content, Ellie says no description is saved yet.
+A conversation label is separate from its workstream name. Previews are fixed
+for an already displayed picker; start a new chat for updated previews.
 Conversation choices load only those source
 chats; other conversations stay excluded. Start fresh excludes past memory while
 keeping the current chat's write destination. Workstream choices continue the

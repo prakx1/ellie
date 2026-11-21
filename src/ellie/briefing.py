@@ -136,10 +136,13 @@ def select_history(service, project: str, query: str, *, interactive: bool | Non
 
 
 def pick_conversations(service, project, *, input_fn=None, output=None):
+    from .preview import lines as preview_lines
     input_fn, output = input_fn or input, output or sys.stdout
     records = service.conversations(project)["conversations"]
     for i, record in enumerate(records, 1):
         print(f"{i}) {record['title']} · {record['agent']} · {len(record['items'])} items · {record['id']}", file=output)
+        for line in preview_lines(record):
+            print("   " + line, file=output)
     while True:
         answer = input_fn("Conversations [1,2 · 0 = no history · q = cancel]: ").strip()
         if answer == "q":

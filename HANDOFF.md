@@ -17,6 +17,39 @@ under .git; they are not pushed. The repair was published with an explicit
 force-with-lease check against the original remote tip. Runtime code and
 private memory are unchanged by this attribution correction.
 
+## Memory content previews (0.3.3, 2026-11-21)
+
+The user clarified that the picker must explain what each memory is about;
+preferring a summary over an opening message did not meet that requirement.
+Choices now show a Covers description, up to three saved topics, state and
+next step where present. Chat instructions explicitly require the preview to
+remain visible even if native choice controls hide option descriptions. The
+terminal conversation picker and dashboard cards show the same fields.
+
+preview.py derives small redacted excerpts from saved goals, useful summaries,
+historical item titles and per-conversation state. Generic completion text is
+ignored, missing summaries fall back to saved topics, state-only handoffs are
+described, and the raw chat opener is never the topic. No useful saved content
+produces an explicit missing-description label rather than an invented topic.
+Conversation state comes only from its own session snapshots, never another
+chat's newer global workstream state. Shared-project picker text stays general.
+All reads use Store; no migration, extra model call or extraction-schema change.
+
+Regression loops reproduced the generic-summary and missing-preview failures
+before implementing the fixes. Tests cover own-session provenance, state-only
+handoffs, chat hooks for both agents, terminal selection and actual HTTP data.
+All 132 tests pass on Python 3.10.20 (207.7s) and 3.15.0a7 (218.3s), following
+34 focused passes on 3.14.3. JavaScript syntax checks pass. The isolated 3.10
+installed wheel's real hooks produce Covers/State/Next previews for both
+agents from a generic-summary fixture, keep full bodies unloaded, preserve a
+subsequent no-history selection, and pass MCP initialization. No model calls
+or runtime dependencies were added. Live agent rendering of these new preview
+lines and visual dashboard layout remain unverified. Existing frozen menus
+need a new chat after restarting the agent; real profiles/memory are not edited.
+The user tool was separately upgraded to 0.3.3 with isolated profile/cache
+directories; its 31 runtime files match the tested wheel. No real-profile
+ellie install was run. Existing installed hook paths remain valid.
+
 ## Conversation label fix (0.3.2, 2026-11-21)
 
 The user's screenshot shows the first-reply picker in Codex 0.171.0 after a

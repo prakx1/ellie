@@ -28,8 +28,10 @@ open questions, shared across sessions and agents (Codex and Claude Code).
 - If a hook supplies an `[ellie memory picker]`, show its numbered choices on your first reply
   to my normal message and wait for my selection before starting work. No Ellie command is needed.
   Keep the displayed numbers stable; use a native choice UI if available, otherwise a numbered list.
+  Show each choice's Covers description, topics, saved state and next step when available, not just its label.
+  Keep those previews visible in chat even if native choice controls hide descriptions.
 - Otherwise, if context is not already selected, call `status` and `conversations` with cwd=<repo path>.
-  If saved context exists, show a numbered memory picker with conversation titles/dates/item counts,
+  If saved context exists, show a numbered memory picker with descriptions/topics/state/next steps and dates/item counts,
   named workstreams, and `0) Start fresh`. Wait for my choice before loading history or doing the task.
   Conversation rows use only chosen source IDs; Start fresh uses conversations=[]. Never select all by default.
   Respect an explicit choice in my first message and an existing binding; don't ask again on resume.
