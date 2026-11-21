@@ -25,8 +25,14 @@ open questions, shared across sessions and agents (Codex and Claude Code).
   it in every Ellie call. Use bind/load for this conversation's write workstreams.
 - Use conversations to list sources. To use only selected chats, call load with
   conversations=[IDs]; [] means no past chats. Never widen a selection unasked.
-- Otherwise, at the start of work in a repo, call ellie `status` with cwd=<repo path>. If memories
-  exist, ask me which to load (or none / new), then call `load`.
+- If a hook supplies an `[ellie memory picker]`, show its numbered choices on your first reply
+  to my normal message and wait for my selection before starting work. No Ellie command is needed.
+  Keep the displayed numbers stable; use a native choice UI if available, otherwise a numbered list.
+- Otherwise, if context is not already selected, call `status` and `conversations` with cwd=<repo path>.
+  If saved context exists, show a numbered memory picker with conversation titles/dates/item counts,
+  named workstreams, and `0) Start fresh`. Wait for my choice before loading history or doing the task.
+  Conversation rows use only chosen source IDs; Start fresh uses conversations=[]. Never select all by default.
+  Respect an explicit choice in my first message and an existing binding; don't ask again on resume.
 - Before choosing an approach, call `recall` to check what was decided, tried or learned before.
 - As you work: `decide` for choices (options, tradeoff, why), `result` for things tried
   (worked/failed/partial with evidence), `finding` for things learned, `question` for open issues.

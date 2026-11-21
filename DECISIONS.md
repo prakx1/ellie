@@ -1,5 +1,27 @@
 # Decisions
 
+## Memory picker in ordinary chats (2026-11-21)
+
+- Opening Codex/Claude normally should require no Ellie command in the chat.
+  A new unselected session supplies a numbered catalog and asks the agent to
+  show it on its first reply to the user's normal message, then wait. A native
+  choice control is optional; a numbered text list is the portable fallback.
+  Hooks do not open an interactive menu or cause an unsolicited model turn.
+- Before selection, the hook supplies catalog labels, not old item bodies or
+  shared item titles. Conversation choices use a strict source filter; Start
+  fresh uses conversations=[]. Named workstreams retain their existing ordinary
+  load semantics. Explicit first-message selections bypass the question.
+- The bounded catalog is frozen through Store in the current session registry
+  until bind/load records an explicit selection. Parallel saves cannot silently
+  renumber displayed choices. A More choice reaches the full catalog; empty
+  automatic chat destinations and archived workstreams are omitted.
+- bind/load marks context_selected and removes the temporary picker. Launcher
+  selections and legacy existing bindings skip the prompt on resume. If there
+  is no saved context at startup, the chat proceeds without a later interruption.
+- Updated installed instructions and MCP initialization guidance reinforce the
+  same behavior. Rendering remains the agent's responsibility; subprocess tests
+  verify hook output and scope preservation, not a live model's compliance.
+
 ## Conversation selection and automatic capture (approved 2026-11-19)
 
 - The user approved automatic hooks, incremental capture, startup context,

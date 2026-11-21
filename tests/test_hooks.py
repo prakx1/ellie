@@ -28,6 +28,100 @@ class HookTests(IsolatedTest):
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
 
+    def test_first_reply_offers_a_numbered_picker_without_loading_old_content(self):
+        self.store.add_item(self.project, "work", "N", "Login decision", {},
+                            session="past-login", body="Full login history stays unloaded")
+        self.store.update_sessions(self.project, lambda data: data["past-login"].update(
+            {"title": "Fix login retries", "agent": "codex", "started": "2026-11-20T10:00:00Z"}))
+        self.store.add_item(self.project, "project", "N", "Shared private detail", {})
+        for agent in ("codex", "claude"):
+            with self.subTest(agent=agent):
+                session = write_session(self, agent)
+                for event in ("SessionStart", "UserPromptSubmit"):
+                    context = self.hook(session, event, prompt="Work on login")["hookSpecificOutput"]["additionalContext"]
+                    self.assertIn("[ellie memory picker]", context)
+                    self.assertIn("0) Start fresh", context)
+                    self.assertIn("1) Conversation: Fix login retries", context)
+                    self.assertIn("past-login", context)
+                    self.assertIn("Workstream: work", context)
+                    self.assertIn("wait for the user's choice", context)
+                    self.assertNotIn("Full login history stays unloaded", context)
+                    self.assertNotIn("Shared private detail", context)
+                    self.assertLessEqual(len(context), 7000)
+        self.assertFalse(Path(os.environ["FAKE_CALLS"]).exists())
+
+    def test_a_chosen_scope_is_preserved_without_another_picker_on_resume(self):
+        self.store.add_item(self.project, "work", "N", "Login history", {},
+                            session="past-login", body="Selected login body")
+        self.store.add_item(self.project, "work", "N", "Payments history", {},
+                            session="past-payments", body="Unselected payments body")
+        service = MemoryService(self.store)
+        self.addCleanup(service.close)
+        for selected in (None, ["past-login"], []):
+            with self.subTest(selected=selected):
+                session = write_session(self)
+                self.hook(session, "SessionStart")
+                with service.in_session(session.id):
+                    service.load(self.project, ["work"], conversations=selected)
+                for event in ("UserPromptSubmit", "SessionStart"):
+                    context = self.hook(session, event)["hookSpecificOutput"]["additionalContext"]
+                    self.assertNotIn("[ellie memory picker]", context)
+                    if selected is not None:
+                        self.assertNotIn("Unselected payments body", context)
+                        if event == "SessionStart":
+                            self.assertEqual("Selected login body" in context, bool(selected))
+                self.assertTrue(self.store.read_sessions(self.project)[session.id]["context_selected"])
+
+    def test_empty_chats_and_archived_workstreams_do_not_offer_meaningless_choices(self):
+        self.store.move_memory(self.project, "work", True)
+        for agent in ("codex", "claude"):
+            session = write_session(self, agent)
+            context = self.hook(session, "SessionStart")["hookSpecificOutput"]["additionalContext"]
+            self.assertNotIn("[ellie memory picker]", context)
+        self.store.add_item(self.project, "project", "N", "Saved after startup", {})
+        context = self.hook(session, "UserPromptSubmit")["hookSpecificOutput"]["additionalContext"]
+        self.assertNotIn("[ellie memory picker]", context)
+
+    def test_picker_numbers_stay_stable_when_another_chat_saves_new_memory(self):
+        self.store.add_item(self.project, "work", "N", "Earlier history", {}, session="past-earlier")
+        session = write_session(self)
+        before = self.hook(session, "SessionStart")["hookSpecificOutput"]["additionalContext"]
+        self.store.add_item(self.project, "work", "N", "Later history", {}, session="past-later")
+        after = self.hook(session, "UserPromptSubmit", prompt="1")["hookSpecificOutput"]["additionalContext"]
+        self.assertEqual(before, after)
+
+    def test_large_catalog_fits_the_hook_budget_and_keeps_a_more_choice(self):
+        self.store.move_memory(self.project, "work", True)
+        for number in range(10):
+            name = "work-" + str(number) + "x" * 225
+            self.store.create_memory(self.project, name, "Description " * 30)
+            past = "past-" + str(number) + "y" * 120
+            self.store.add_item(self.project, name, "N", "Saved history", {}, session=past)
+            self.store.update_sessions(self.project, lambda data: data[past].update(
+                {"title": "Long conversation title " * 20, "agent": "claude-code"}))
+        session = write_session(self)
+        context = self.hook(session, "SessionStart")["hookSpecificOutput"]["additionalContext"]
+        self.assertLessEqual(len(context), 7000)
+        self.assertIn("m) More choices", context)
+        self.assertIn("Never assume all history", context)
+
+    def test_launcher_selection_and_legacy_bindings_are_not_prompted_again(self):
+        self.store.add_item(self.project, "work", "N", "Past history", {}, session="past-chat")
+        run = "launcher-selection"
+        self.store.write_pending(run, {"run_id": run, "project": self.project,
+                                      "memories": ["work"], "context_conversations": []})
+        session = write_session(self)
+        with patch.dict(os.environ, {"ELLIE_RUN_ID": run}):
+            context = self.hook(session, "SessionStart")["hookSpecificOutput"]["additionalContext"]
+        self.assertNotIn("[ellie memory picker]", context)
+        self.assertNotIn("Past history", context)
+        legacy = write_session(self)
+        self.store.update_sessions(self.project, lambda data: data.update(
+            {legacy.id: {"bound_memories": ["work"], "context_conversations": ["past-chat"]}}))
+        context = self.hook(legacy, "SessionStart")["hookSpecificOutput"]["additionalContext"]
+        self.assertNotIn("[ellie memory picker]", context)
+        self.assertIn("Past history", context)
+
     def test_normal_session_is_bound_and_durably_queued_without_a_model_in_hook(self):
         session = write_session(self)
         response = self.hook(session, "SessionStart")

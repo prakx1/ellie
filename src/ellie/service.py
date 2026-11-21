@@ -71,7 +71,8 @@ class MemoryService:
         def change(data):
             record = data.setdefault(session, {})
             record.update({"agent": self.agent, "bound_memories": memories, "memories": memories,
-                           "context_conversations": conversations})
+                           "context_conversations": conversations, "context_selected": True})
+            record.pop("startup_picker", None)
             record.setdefault("started", now())
         self.store.update_sessions(project, change)
         return {"session_id": session, "memories": memories, "conversations": conversations}

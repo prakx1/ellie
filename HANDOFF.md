@@ -17,6 +17,44 @@ under .git; they are not pushed. The repair was published with an explicit
 force-with-lease check against the original remote tip. Runtime code and
 private memory are unchanged by this attribution correction.
 
+## Chat memory picker (0.3.1, 2026-11-21)
+
+The user wants a picker inside ordinary Codex/Claude chats without typing an
+Ellie command. New unselected sessions now inject a numbered catalog and ask
+the agent to show it on its first reply to a normal message, then wait before
+starting the task. Conversation titles/dates/counts, named workstreams, Start
+fresh, shared project memory when present, and More choices are available.
+Old memory bodies are not injected before the choice. The client can render
+a native choice control or a numbered text list; hooks do not start a model
+turn before the user's first message.
+
+Choices are frozen through Store so parallel captures cannot renumber the
+displayed catalog. bind/load marks the context selected and removes the
+temporary picker. Strict conversation filters and no-history remain intact.
+Launcher choices, existing legacy bindings, and resumed selections skip the
+question. Projects with no saved context skip it; empty automatic destinations
+and archived workstreams are omitted. Catalog rows stay within the hook budget
+and a More option reaches the full catalog. Updated install/MCP guidance and
+README describe this behavior. The original spec remains unchanged.
+
+Validation: 32 focused hook/install/conversation/MCP tests passed on Python
+3.14.3. The clean Python 3.10 installed wheel passed real hook subprocesses for
+both agents, source exclusion/selection checks and an MCP initialize round-trip
+with isolated profiles and no model calls. Its metadata has zero runtime deps.
+All 125 tests pass on Python 3.10.20 (166.9s) and 3.15.0a7 (177.6s). Live model
+compliance with the prompt and a native choice widget remain unverified.
+
+Current isolated development runner and wheel are under
+/private/var/folders/93/djm21yqn3979_wbdq5vpv4_c0000gq/T/ellie-picker-gozwbkpb.
+The older development temp root below has expired. run.py isolates all agent,
+memory, XDG and uv directories; smoke.py checks the installed wheel using -I.
+No real agent configuration or private memory files were changed by this work.
+The existing user tool executable was upgraded separately to 0.3.1 using the
+same Python 3.14 interpreter and isolated configuration/cache directories;
+all 30 installed runtime files match the tested wheel. Existing hook command
+paths remain valid. Restart agents for new MCP guidance; ellie install can
+refresh the expanded instruction block, but was not run against real profiles.
+
 ## README update (2026-11-20)
 
 Expanded installation prerequisites, clone/setup commands, agent-specific setup,

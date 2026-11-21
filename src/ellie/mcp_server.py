@@ -76,7 +76,7 @@ class Server:
                     self.service.agent = "codex" if "codex" in name else "claude-code" if "claude" in name else "you"
                 result = {"protocolVersion": params.get("protocolVersion", "2024-11-05"), "capabilities": {"tools": {}},
                           "serverInfo": {"name": "ellie", "version": __version__},
-                          "instructions": "Use status/load at start, recall before choosing, record decisions/results/findings, and handoff when wrapping up. Verify old memory against code; never save secrets."}
+                          "instructions": "At startup, if context is unselected, use status/conversations to show a numbered memory picker with Start fresh; wait for a choice before loading or working. Respect existing selections. Recall before choosing an approach, record decisions/results/findings, and handoff when wrapping up. Verify old memory against code; never save secrets."}
             elif method == "ping":
                 result = {}
             elif method == "tools/list":

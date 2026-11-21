@@ -67,6 +67,9 @@ class InstallTests(IsolatedTest):
             self.assertEqual([path.read_bytes() for path in paths], first)
             self.assertEqual((codex_home() / "config.toml.ellie-backup").read_bytes(), original_config)
             self.assertEqual((codex_home() / "AGENTS.md").read_text().count(BEGIN), 1)
+            for instructions in (codex_home() / "AGENTS.md", claude_home() / "CLAUDE.md"):
+                self.assertIn("numbered memory picker", instructions.read_text())
+                self.assertIn("0) Start fresh", instructions.read_text())
             self.assertIn('default_tools_approval_mode = "approve"', (codex_home() / "config.toml").read_text())
             self.assertTrue(self.store.path("extraction.md").exists())
             self.store.path("extraction.md").write_text("User guidance")

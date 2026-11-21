@@ -102,7 +102,34 @@ codex
 # Or run: claude
 ```
 
-In the chat, say:
+If this project already has saved context, send your normal first message, such
+as “Let's work on login.” Ellie asks the agent to show a picker in its first reply:
+
+```text
+Ellie 🐘 — Which memory should I use?
+0) Start fresh — no past memory
+1) Conversation: Fix login retries · Codex · Nov 20 · 8 items
+2) Workstream: billing-bug · Double charge on retry
+m) More choices
+```
+
+The labels above are examples from a project with saved memory. Reply with a
+number, several numbers, or a name. Conversation choices load only those source
+chats; other conversations stay excluded. Start fresh excludes past memory while
+keeping the current chat's write destination. Workstream choices continue the
+named workstream with its usual shared project context. The agent then continues
+your original task. Existing selections, explicit choices in your first message,
+and resumed bindings skip this question; projects without saved context skip it
+too. Empty automatic chat workstreams and archived workstreams aren't offered.
+
+This is an agent-rendered chat picker: it can use a native choice control when
+available or a numbered text list. Hooks supply the catalog and instructions;
+the agent follows them on its first turn. Nothing appears before your first
+message. Use `ellie start` below for a terminal picker before launching the agent.
+After upgrading an older installation, rerun `ellie install` and restart the
+agents to refresh their startup instructions.
+
+To choose a new write workstream explicitly in the chat, say:
 
 > Use Ellie for this project. Create and load a workstream called `auth-refactor`
 > for this task, bind this conversation to it, and save important decisions,
