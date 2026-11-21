@@ -125,7 +125,12 @@ def command(executable: str, id: str | None, directory: Path, schema: Path, outp
         args.extend(["--disable", feature])
     for config in ('sandbox_mode="read-only"', 'approval_policy="never"', 'web_search="disabled"'):
         args.extend(["-c", config])
-    for server in servers:
-        args.extend(["-c", "mcp_servers." + json.dumps(server) + ".enabled=false"])
+    # Ignoring user config removes transports, but disabled entries still need
+    # valid ones. An inline TOML map also preserves dots/quotes in server names;
+    # Codex's dotted -c keys do not parse quoted path segments as TOML keys.
+    disabled = json.dumps(str(directory / "disabled-mcp"))
+    entries = [json.dumps(server) + "={command=" + disabled + ",enabled=false}" for server in servers]
+    if entries:
+        args.extend(["-c", "mcp_servers={" + ",".join(entries) + "}"])
     args.extend(["--output-schema", str(schema), "-o", str(output)])
     return args + (["fork", session_id(id), "-"] if id else ["-"])

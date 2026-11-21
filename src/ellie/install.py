@@ -35,6 +35,8 @@ open questions, shared across sessions and agents (Codex and Claude Code).
   named workstreams, and `0) Start fresh`. Wait for my choice before loading history or doing the task.
   Conversation rows use only chosen source IDs; Start fresh uses conversations=[]. Never select all by default.
   Respect an explicit choice in my first message and an existing binding; don't ask again on resume.
+- Before answering latest work/progress, reload selected memory with `load` and keep the existing
+  conversation selection. `status` returns inventory/health; another chat's saves need a fresh load.
 - Before choosing an approach, call `recall` to check what was decided, tried or learned before.
 - As you work: `decide` for choices (options, tradeoff, why), `result` for things tried
   (worked/failed/partial with evidence), `finding` for things learned, `question` for open issues.

@@ -151,6 +151,13 @@ in the background as you work. You can also ask the agent to â€œsave a handoffâ€
 record the current state and next steps immediately through its memory tools.
 Use a different workstream in each chat when working on parallel tasks.
 
+`status` reports the memory inventory and capture health. To answer a question
+about the latest work, the agent reloads the selected memory with `load` while
+keeping your source selection. Saves from a parallel chat are available to a
+fresh load; they are not pushed into a briefing the agent already read. If
+capture health reports failures, background extraction has not completed even
+when live tool saves are working. Failed jobs stay available for retry.
+
 For a new task that needs specific past context, say:
 
 > Use only conversation CONVERSATION_ID for context. Create and load a new

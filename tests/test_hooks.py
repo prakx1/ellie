@@ -86,6 +86,7 @@ class HookTests(IsolatedTest):
                 for event in ("UserPromptSubmit", "SessionStart"):
                     context = self.hook(session, event)["hookSpecificOutput"]["additionalContext"]
                     self.assertNotIn("[ellie memory picker]", context)
+                    self.assertIn("reload the selected memory with load", context)
                     if selected is not None:
                         self.assertNotIn("Unselected payments body", context)
                         if event == "SessionStart":

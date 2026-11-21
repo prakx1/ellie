@@ -17,6 +17,43 @@ under .git; they are not pushed. The repair was published with an explicit
 force-with-lease check against the original remote tip. Runtime code and
 private memory are unchanged by this attribution correction.
 
+## Capture transport fix and fresh reads (0.3.4, 2026-11-21)
+
+A read-only operational check found live memory writes continuing while
+background extraction failed before a model could run. The generated Codex
+command ignored user configuration and then created disabled MCP entries with
+no transport. Codex still validates those entries. Quoted dotted CLI override
+keys also produced incorrect names, so an initial transport-only repair did
+not handle server names containing dots. A real CLI regression reproduced
+both failures under temporary profiles before the final fix passed.
+
+Codex overrides now use an inline TOML server map with exact quoted names,
+enabled=false and inert commands pointing to nonexistent paths in the temporary
+extraction directory. External MCP remains disabled, with read-only sandbox,
+no shell/hooks/plugins/apps, ephemeral sessions and no API keys. No user
+configuration is rewritten. Tests cover ordinary, hyphenated, dotted and
+quote-containing server names using real Codex mcp list without model/auth.
+
+The operational check also found an existing briefing older than a subsequent
+live save. Hook/install guidance now requires a fresh load for latest-progress
+questions while preserving the user's source selection. status's tool
+description clarifies that it returns inventory/health, not current work.
+
+All 53 relevant session/capture/hook/MCP/install tests pass on Python 3.10.20
+(112.2s) and 3.15.0a7 (114.4s). The original red/green config-parser regression
+and fake extraction subprocess also pass on 3.14.3. No unrelated runtime/UI
+code changed; the 132-test 0.3.3 baseline remains recorded below. Real failed
+jobs were not retried, memory/bindings were not changed, and no authenticated
+extraction was run during this read-only check. Provider/auth/schema success
+and recovery of those jobs still require operational verification.
+The isolated Python 3.10 installed wheel passes real Codex config validation,
+both hook entrypoints, scoped no-history loading and MCP initialization with
+zero model calls. The user executable was separately upgraded to 0.3.4 using
+isolated profiles; all 31 runtime files match the tested wheel. A subsequent
+read-only health check still reports the old failed jobs: updating code alone
+does not claim or acknowledge a capture retry. No private project content,
+session identifiers or user configuration is included in the regression tests.
+
 ## Memory content previews (0.3.3, 2026-11-21)
 
 The user clarified that the picker must explain what each memory is about;

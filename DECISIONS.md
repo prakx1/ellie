@@ -1,5 +1,24 @@
 # Decisions
 
+## Codex extraction transport and fresh reads (0.3.4, 2026-11-21)
+
+- Codex validates transport configuration even for disabled MCP servers.
+  --ignore-user-config removes transport definitions, so the old enabled=false
+  overrides created invalid server entries. CLI dotted override keys also do
+  not interpret quoted path segments as TOML key syntax. Use one inline TOML
+  map with exact server names, enabled=false and an inert transport command
+  pointing to a nonexistent file in the extraction directory. This keeps
+  external MCP servers disabled without changing the user's configuration.
+- A real Codex mcp list regression validates generated overrides with temporary
+  profiles, including hyphens, dots and quote characters. It requires no model
+  or authentication. Fake extraction tests continue checking read-only mode,
+  no API key, disabled servers, merging and durable failure/retry behavior.
+- status is inventory/health, not a task briefing. Hook/install guidance now
+  requires a fresh load when answering latest-progress questions, preserving
+  the existing conversation selection. Parallel saves do not automatically
+  replace context an agent has already loaded. Operational diagnosis remains
+  read-only; real failed jobs are not retried as a development verification.
+
 ## Explain memory contents before selection (0.3.3, 2026-11-21)
 
 - A renamed label alone does not tell the user what a conversation covers.

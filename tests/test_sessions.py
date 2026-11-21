@@ -2,6 +2,8 @@ from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
 
 from ellie.agents import adapter
 from ellie.capture import discover_project, match_session
@@ -16,6 +18,32 @@ class SessionTests(IsolatedTest):
         self.checkout.mkdir()
         self.git(self.checkout, "init")
         self.git(self.checkout, "remote", "add", "origin", "https://" + self.project + ".git")
+
+    def test_codex_disabled_server_overrides_parse_without_user_configuration(self):
+        executable = shutil.which("codex")
+        if not executable:
+            self.skipTest("Codex is not installed")
+        directory = self.root / "extraction"
+        directory.mkdir()
+        names = {"sample", "hyphen-server", "quoted.server", 'quote"server'}
+        command = adapter("codex").command(executable, None, directory, directory / "schema.json",
+                                           directory / "out.json", sorted(names))
+        overrides = []
+        for index, value in enumerate(command[:-1]):
+            if value == "-c" and command[index + 1].startswith(("mcp_servers.", "mcp_servers=")):
+                overrides.extend([value, command[index + 1]])
+        # An empty temporary profile reproduces exec --ignore-user-config's
+        # missing transport definitions. This command never starts a model.
+        result = subprocess.run([executable, *overrides, "mcp", "list", "--json"],
+                                cwd=directory, capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = json.loads(result.stdout)
+        self.assertEqual({row["name"] for row in rows}, names)
+        self.assertTrue(all(not row["enabled"] for row in rows))
+        for row in rows:
+            path = Path(row["transport"]["command"])
+            self.assertEqual(path.parent, directory)
+            self.assertFalse(path.exists())
 
     def test_both_codex_generations_and_claude_count_human_prompts(self):
         write_session(self, "codex")

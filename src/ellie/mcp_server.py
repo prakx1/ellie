@@ -27,7 +27,7 @@ TOOLS = [
     tool("conversations", "Before selecting context, list conversations with descriptions, topics, saved state/next steps, source item IDs and capture status. Show previews in the picker so users know what each choice covers.", {}, []),
     tool("bind", "Bind the current session_id to write workstreams and optional source conversations; [] means no past conversations.", {"memories": TEXTS, "conversations": TEXTS}, ["session_id", "memories"]),
     tool("timeline", "After recall, inspect nearby items around an anchor ID or query, limited to selected conversations.", {"anchor": TEXT, "query": TEXT, "before": {"type": "integer", "minimum": 0, "maximum": 25}, "after": {"type": "integer", "minimum": 0, "maximum": 25}, "conversations": TEXTS}, []),
-    tool("status", "Use at the start of work to discover this project's memories and uncaptured sessions.", {}, []),
+    tool("status", "Discover saved workstreams, capture health and uncaptured sessions. Returns metadata; use load for fresh work details, current state and next steps.", {}, []),
     tool("load", "Before work, load workstreams or only selected source conversations; preserves the session's context restriction.", {"memories": TEXTS, "conversations": TEXTS}, ["memories"]),
     tool("get", "After recall, fetch full items by ID. Conversation restrictions also apply to full-item reads.", {"ids": TEXTS, "conversations": TEXTS}, ["ids"]),
     tool("recall", "Before choosing an approach, search past decisions, failures and findings within the selected conversation context.", {"query": TEXT, "types": TEXTS, "limit": {"type": "integer", "minimum": 1, "maximum": 1000}, "include_superseded": BOOL, "all_projects": BOOL, "conversations": TEXTS}, ["query"]),

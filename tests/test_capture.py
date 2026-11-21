@@ -91,7 +91,8 @@ class CaptureTests(IsolatedTest):
         self.assertFalse(call["has_api_key"])
         self.assertIn('sandbox_mode="read-only"', call["args"])
         self.assertIn('approval_policy="never"', call["args"])
-        self.assertIn('mcp_servers."external-server".enabled=false', call["args"])
+        self.assertTrue(any(value.startswith("mcp_servers=") and '"external-server"' in value
+                            and "enabled=false" in value for value in call["args"]))
         self.assertEqual(call["args"][-3:], ["fork", session.id, "-"])
         self.assertNotEqual(call["cwd"], str(self.checkout))
         for feature in ("hooks", "plugins", "apps", "shell_tool"):

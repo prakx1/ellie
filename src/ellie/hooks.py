@@ -167,7 +167,9 @@ def context(store, project, session, record, *, compact=False):
             + ", ".join(record.get("bound_memories", []))
             + "\nInclude this session_id and project in EVERY Ellie MCP call. This binding belongs only to this conversation."
             + "\nUse conversations to choose historical sources; load(memories=[destination], conversations=[source IDs])"
-            + " excludes other history. Use [] for no past conversations. Record useful decisions/results/findings as you work.")
+            + " excludes other history. Use [] for no past conversations. Record useful decisions/results/findings as you work."
+            + "\nBefore answering latest work/progress, reload the selected memory with load, keeping this conversation's existing source selection. "
+            + "status returns inventory and capture health, not current work details. Another chat's saves are not pushed into an already loaded briefing.")
     if record.get("context_selected") is False:
         picker = record.get("startup_picker")
         if picker is None:
