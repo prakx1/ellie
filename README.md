@@ -9,6 +9,15 @@ Model calls use your installed `codex exec` or `claude -p` and their existing
 CLI login. Ellie never reads credentials or uses an API key. Extraction runs
 consume your CLI plan's normal usage.
 
+![Ellie dashboard showing goals, current state, next steps, and saved items for a fictional demo project](docs/images/dashboard-overview.png)
+
+See your project's goals, current state, next steps, and saved decisions in one
+place. [Open the dashboard](#browse-your-memory) to explore your own memory.
+
+All screenshots use fictional `demo-store` and `demo-api` projects with sample
+memory. Names, timestamps, and capture statuses are illustrative; no personal
+project data is shown.
+
 ## Install
 
 You need Git, [uv](https://docs.astral.sh/uv/getting-started/installation/),
@@ -241,6 +250,29 @@ ellie ui --no-open           # print the URL without opening a browser
 ellie ui --port 0            # choose a free port
 ellie ui --port 9000         # choose a specific port
 ```
+
+### Screenshots
+
+<details>
+<summary>Choose context from specific conversations</summary>
+
+See what each conversation covered, select the sources you need, and copy a
+startup command for a new workstream. Here, only the sign-in conversation is
+selected; checkout history stays excluded.
+
+![Conversation selector with a fictional sign-in conversation selected and a startup command for a new workstream](docs/images/conversation-selection.png)
+
+</details>
+
+<details>
+<summary>Inspect a saved decision and its source</summary>
+
+Open a memory card to read the alternatives, chosen approach, tradeoff, reasoning,
+references, and source conversation.
+
+![Saved decision details showing retry alternatives, the chosen approach, tradeoff, reasoning, and fictional source conversation](docs/images/decision-detail.png)
+
+</details>
 
 ### If the UI does not open or looks empty
 

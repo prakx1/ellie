@@ -17,6 +17,23 @@ under .git; they are not pushed. The repair was published with an explicit
 force-with-lease check against the original remote tip. Runtime code and
 private memory are unchanged by this attribution correction.
 
+## README screenshots (2026-11-22)
+
+Added three actual dashboard captures under docs/images: the project overview,
+conversation selection with a startup command, and a decision's full details.
+README.md shows the overview near the introduction and expandable examples in
+the dashboard section, with captions and an explicit fictional-data notice.
+
+All captures use a newly seeded temporary HOME/CODEX_HOME/ELLIE_HOME and a
+separate loopback server/browser context. Only fictional demo-store/demo-api
+projects, source IDs, paths, and sample memory are shown; timestamps and capture
+statuses are illustrative. No real profiles, project names, or memory were used.
+All three images were visually inspected, and page text was checked for private
+names/paths. Verified image links, PNG dimensions, and git diff whitespace.
+The demo server was stopped; its memory/registry hashes remained unchanged.
+This is a documentation/assets change; runtime code and test results from the
+0.3.5 verification below remain unchanged. No new runtime work is required.
+
 ## Full feature verification (0.3.5, 2026-11-22)
 
 The user requested a thorough check of every feature and bugs. See QA_REPORT.md
