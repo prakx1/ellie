@@ -17,6 +17,26 @@ under .git; they are not pushed. The repair was published with an explicit
 force-with-lease check against the original remote tip. Runtime code and
 private memory are unchanged by this attribution correction.
 
+## Claude login diagnostics (2026-11-24)
+
+Fixed a missing check in ellie doctor: Codex authentication was probed, but a
+signed-out Claude profile could still produce a successful doctor result.
+Doctor now calls claude auth status without invoking a model and requires both
+a successful process exit and the JSON boolean loggedIn=true. Signed-out,
+malformed, missing-field, wrong-type, and failed status responses fail the
+check with the subscription login command. Account metadata is not displayed.
+
+The signed-out regression failed before the fix and passes afterward. Fake
+CLIs now explicitly support auth status without recording an extraction call.
+The user guide documents the recovery command. Development uses a separate
+temporary HOME, CODEX_HOME, ELLIE_HOME, Claude config, and XDG directories, with
+API-key variables removed. The user's pending temporary login for live capture
+verification is separate and remains on hold; this fix makes no model calls.
+Validation: all 143 tests pass on Python 3.10.20 (140.1s), and all eight focused
+doctor/backfill tests pass on Python 3.14.3 (15.7s). The real Claude 2.1.278 CLI
+also reports signed-out status correctly through the new check in an empty
+temporary profile. No user installation or personal memory was changed.
+
 ## Launch README refinement (2026-11-24)
 
 Reworked README.md for visitors from an X launch post: a short product pitch,

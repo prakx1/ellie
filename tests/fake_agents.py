@@ -64,6 +64,9 @@ if args[:3] == ['mcp','get','ellie']:
         print(json.dumps({'transport':{'command':sys.executable,'args':['-m','ellie','mcp']}}))
         raise SystemExit(0)
     raise SystemExit(1)
+if agent=='claude' and args == ['auth','status']:
+    print(os.environ.get('FAKE_CLAUDE_AUTH_STATUS','{"loggedIn":true}'))
+    raise SystemExit(int(os.environ.get('FAKE_CLAUDE_AUTH_EXIT','0')))
 if not (agent=='codex' and args and args[0]=='exec') and not (agent=='claude' and '-p' in args):
     if os.environ.get('FAKE_INTERACTIVE_RECORD'):
         pathlib.Path(os.environ['FAKE_INTERACTIVE_RECORD']).write_text(json.dumps(args))

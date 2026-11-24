@@ -61,6 +61,14 @@ def diagnose(store) -> list[Check]:
             instruction_path = codex_home() / "AGENTS.md"
         else:
             try:
+                authenticated, raw = probe([executable, "auth", "status"])
+                status = json.loads(raw)
+                logged_in = authenticated and isinstance(status, dict) and status.get("loggedIn") is True
+            except ValueError:
+                logged_in = False
+            checks.append(Check("claude login", logged_in, "Logged in" if logged_in else "Not logged in or status unavailable",
+                                "Run claude auth login --claudeai using your subscription."))
+            try:
                 entry = json.loads(read_text(claude_config()) or "{}").get("mcpServers", {}).get("ellie", {})
                 registered = entry.get("args") == ["-m", "ellie", "mcp"] and Path(entry.get("command", "")).is_absolute()
             except (ValueError, OSError, AttributeError):

@@ -80,6 +80,7 @@ class HistoricalTests(IsolatedTest):
         output = io.StringIO()
         self.assertEqual(run(self.store, output), 0, output.getvalue())
         self.assertIn("PASS codex login", output.getvalue())
+        self.assertIn("PASS claude login: Logged in", output.getvalue())
         self.assertIn("PASS claude MCP", output.getvalue())
         self.assertFalse(Path(os.environ["FAKE_CALLS"]).exists())
 
@@ -105,3 +106,26 @@ class HistoricalTests(IsolatedTest):
         with patch.object(self.store, "probe_writable", side_effect=PermissionError):
             checks = diagnose(self.store)
         self.assertFalse(next(check for check in checks if check.name == "store write").ok)
+
+    def test_doctor_reports_claude_signed_out_without_calling_a_model(self):
+        with patch("ellie.install.run_cli", return_value=False):
+            install(codex=True, claude=True, store=self.store)
+        with patch.dict(os.environ, {"FAKE_CLAUDE_AUTH_STATUS": '{"loggedIn":false}',
+                                     "FAKE_CLAUDE_AUTH_EXIT": "1"}):
+            output = io.StringIO()
+            self.assertEqual(run(self.store, output), 1, output.getvalue())
+        self.assertIn("FAIL claude login: Not logged in", output.getvalue())
+        self.assertIn("Run claude auth login --claudeai", output.getvalue())
+        self.assertFalse(Path(os.environ["FAKE_CALLS"]).exists())
+
+    def test_doctor_does_not_accept_unverified_claude_authentication(self):
+        for status, exit_code in (("not JSON", "0"), ("null", "0"), ("[]", "0"), ("{}", "0"),
+                                  ('{"loggedIn":"true"}', "0"), ('{"loggedIn":false}', "0"),
+                                  ('{"loggedIn":true}', "1")):
+            with self.subTest(status=status, exit_code=exit_code):
+                with patch.dict(os.environ, {"FAKE_CLAUDE_AUTH_STATUS": status,
+                                             "FAKE_CLAUDE_AUTH_EXIT": exit_code}):
+                    check = next(check for check in diagnose(self.store) if check.name == "claude login")
+                self.assertFalse(check.ok)
+                self.assertIn("claude auth login --claudeai", check.fix)
+        self.assertFalse(Path(os.environ["FAKE_CALLS"]).exists())

@@ -521,6 +521,10 @@ results, retry with `ellie capture --wait`, and rebuild search with `ellie reind
 Corrupt index files are quarantined before rebuilding; memory files are preserved.
 Restart an already-running agent if it still holds the damaged cache open.
 
+Doctor checks login status for both installed agents. If Claude is signed out
+or its authentication status cannot be verified, run
+`claude auth login --claudeai`, then rerun `ellie doctor`.
+
 The latest recorded verification used Codex 0.171.0 and Claude Code 2.1.278.
 Automated tests use fake CLI executables and canned JSON; they need no login.
 Authenticated no-history behavior, provider schema enforcement, and actual
