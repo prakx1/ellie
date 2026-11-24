@@ -17,6 +17,28 @@ under .git; they are not pushed. The repair was published with an explicit
 force-with-lease check against the original remote tip. Runtime code and
 private memory are unchanged by this attribution correction.
 
+## Launch README refinement (2026-11-24)
+
+Reworked README.md for visitors from an X launch post: a short product pitch,
+feature table, four-step quickstart, visible screenshot gallery, selected-chat
+examples, capture explanation, privacy controls, and common commands. Features
+are checked against current CLI/hooks and QA_REPORT.md; automatic capture is
+conditional on trusted hooks, and local storage is distinguished from model
+provider extraction. Screenshots remain the existing fictional demo data.
+
+Moved the previous detailed README into docs/guide.md with working relative
+image/report links and a backlink. Its verification note now points to the
+current QA report and recorded CLI versions. Detailed picker behavior, all
+commands, configuration, storage, upgrade/uninstall, and troubleshooting remain
+available. No runtime code or personal memory is changed. All 28 local
+links/anchors pass; 27 unique README command examples parse in temporary
+HOME/CODEX_HOME/ELLIE_HOME/Claude/XDG profiles. Actual version/help subprocesses
+also pass with no model calls. GitHub GFM rendering and the feature table/image
+gallery were inspected in a temporary local browser preview; images load and
+the page has no horizontal overflow. Whitespace checks pass. The runtime suite
+was not rerun for this documentation-only change.
+The X post is a draft only; publishing to X is not authorized by this request.
+
 ## README screenshots (2026-11-22)
 
 Added three actual dashboard captures under docs/images: the project overview,
