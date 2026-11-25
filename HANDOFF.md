@@ -17,6 +17,43 @@ under .git; they are not pushed. The repair was published with an explicit
 force-with-lease check against the original remote tip. Runtime code and
 private memory are unchanged by this attribution correction.
 
+## Capture project identity repair (0.3.6, 2026-11-25)
+
+Reproduced a hook job retaining its local project ID after the same folder
+gained a Git remote. Jobs now use a project/session key, while unchanged legacy
+jobs retain their old key for compatibility. The replacement is durable before
+idle older jobs for the exact source are retired. Active worker/job locks are
+respected; old project item IDs, handoff markers, retry state and selections
+are not copied. Current bindings supply the destination and source restriction.
+
+A second regression reproduced saving to the old project when its identity
+changed while extraction was running. Identity is now checked again before
+merge. Existing transcript validation is retained. Pauses, exclusions and
+archives-off cannot be relaxed by automatic requeueing. Old saved memories
+remain untouched, and no Store interface or repository-writing path is added.
+
+Tests use synthetic repositories/transcripts and temporary HOME/CODEX_HOME/
+ELLIE_HOME/Claude/XDG roots. Authenticated capture verification using separately
+logged-in test profiles remains a separate pending task.
+Both complete source suites pass: 147 tests on Python 3.10.20 (151.5s) and
+3.14.3 (141.6s). Four new regressions also pass from a clean installed wheel
+(13.3s), with source imports excluded and zero runtime dependencies. All 31
+installed user-runtime files match the tested wheel; user CLI is now 0.3.6.
+The earlier cached temporary Python 3.10 interpreter had lost its standard
+library; a freshly provisioned isolated interpreter was used for the full run.
+
+Operational recovery is separate from development/testing: after the user's
+fix request, affected queue/project records were backed up locally outside Git,
+and the real stale job was requeued through the verified hook handler with its
+current binding and source restriction. One checkpoint per identified failed
+conversation succeeded, and one additional small chunk completed the two
+smaller conversations. The live dashboard API reports zero failed captures and
+a new extraction time; one large historical backlog remains pending. Original
+source transcript prefixes and old local-project Markdown match their backups.
+A large historical replay was not started. Backups and operational results stay
+in the owner's .local/recovery-backups, outside Git.
+No private project names, session IDs, memory or backup contents are committed.
+
 ## Claude login diagnostics (2026-11-24)
 
 Fixed a missing check in ellie doctor: Codex authentication was probed, but a

@@ -41,8 +41,34 @@ def _worker_alive(store, job):
         return False
 
 
+def _older_project_jobs(store, project, session, agent, cwd, path):
+    return [job for job in store.list_pending()
+            if job.get("project") != project and job.get("agent") == agent
+            and job.get("session_id") == session and job.get("incremental")
+            and job.get("launched_by") == "hooks" and job.get("cwd") == cwd
+            and path is not None and job.get("transcript_path") == str(path)]
+
+
+def _retire_jobs(store, jobs):
+    from .store import FileLock
+    for previous in jobs:
+        run = previous["run_id"]
+        try:
+            # A model run may still hold the old project's job. Never replace
+            # its queue entry or let its generation acknowledge the new job.
+            with FileLock(store.path(".local", "workers", run), timeout=0):
+                with FileLock(store.path(".local", "jobs", run), timeout=0):
+                    current = store.read_pending(run)
+                    if all(current.get(key) == previous.get(key) for key in
+                           ("project", "agent", "session_id", "cwd", "transcript_path")):
+                        store.delete_pending(run)
+        except TimeoutError:
+            continue
+
+
 def enqueue(store, project, session, agent, cwd, path, event, payload, *, start_worker=True):
     from .capture import start_background
+    from .privacy import policy
     from .service import DEFAULTS
     config = {**DEFAULTS, **store.read_local("config")}
     if config["capture"] != "auto" or blocked(store, project, session):
@@ -50,7 +76,15 @@ def enqueue(store, project, session, agent, cwd, path, event, payload, *, start_
     record = store.read_sessions(project)[session]
     if record.get("capture_disabled"):
         return None
-    run = "hook-" + agent + "-" + hashlib.sha256(session.encode()).hexdigest()[:32]
+    older = _older_project_jobs(store, project, session, agent, cwd, path)
+    if any(blocked(store, job["project"], session) for job in older):
+        return None
+    if policy(store, project)["archives"] != "off" and any(
+            policy(store, job["project"])["archives"] == "off" for job in older):
+        return None
+    legacy = "hook-" + agent + "-" + hashlib.sha256(session.encode()).hexdigest()[:32]
+    run = legacy if store.read_pending(legacy).get("project") == project else (
+        "hook-" + agent + "-" + hashlib.sha256((project + "\0" + session).encode()).hexdigest()[:32])
     version = None
     if path and path.exists():
         stat = path.stat()
@@ -83,6 +117,9 @@ def enqueue(store, project, session, agent, cwd, path, event, payload, *, start_
             job["dispatch_at"] = clock
         return launch
     launch = store.update_pending(run, change)
+    # Persist the replacement before retiring idle jobs for the same source.
+    # Project-specific IDs, handoff markers and retry state are not copied.
+    _retire_jobs(store, older)
     if launch and start_worker:
         start_background(store, run)
     return run

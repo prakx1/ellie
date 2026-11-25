@@ -1,5 +1,22 @@
 # Decisions
 
+## Capture jobs after project identity changes (0.3.6, 2026-11-25)
+
+- A Git remote can appear or change during a native chat. New hook jobs include
+  both project and session in their key. Existing session-only jobs are reused
+  while their project still matches, avoiding duplicate jobs after upgrading.
+- Persist a fresh current-project job before retiring an idle older job for
+  the exact same agent, session, cwd and transcript. Keep active workers locked
+  to their original job; their generation cannot acknowledge the replacement.
+  Do not copy item IDs, handoff markers, retry counters or source selections
+  across project namespaces. Use the current conversation's binding instead.
+- Never merge old saved memories automatically. Paused/excluded capture and an
+  archives-off policy cannot be bypassed by changing the project's identity.
+  Keep the original transcript/project check and recheck identity after model
+  extraction, before merging, to reject a change during an in-flight call.
+- These operations use the existing Store boundary and device-local locks.
+  No agent configuration, Git remote or project repository is rewritten.
+
 ## Full verification and Markdown state integrity (0.3.5, 2026-11-22)
 
 - Add a real Codex regression using an unauthenticated loopback SSE responder.

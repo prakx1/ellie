@@ -1,10 +1,46 @@
-# Ellie 0.3.5 verification
+# Ellie verification
+
+## 0.3.6 project identity repair — 2026-11-25
+
+A regression reproduced a hook capture retaining its local project ID after
+adding a Git remote. New job keys include the project and conversation. An idle
+older job for the exact source is retired only after the replacement is durable;
+unchanged legacy jobs remain compatible. Old memory files and project-local
+item IDs are not moved or merged, and current source restrictions are retained.
+
+A second regression reproduced a remote changing while a model was running.
+Capture now rechecks project identity before merge. Tests also verify that
+paused/excluded capture and an archives-off policy cannot be bypassed, active
+job locks are respected, and successful capture continues under the new ID.
+The original transcript/project validation remains intact.
+
+| Check | Result |
+| --- | --- |
+| Full source suite, Python 3.10.20 | 147 passed in 151.5s |
+| Full source suite, Python 3.14.3 | 147 passed in 141.6s |
+| Four regressions from a clean installed wheel | 4 passed in 13.3s |
+| Wheel/source/user-install runtime comparison | All 31 files match; version 0.3.6; zero runtime dependencies |
+
+All development tests use temporary agent profiles and synthetic projects.
+Native Codex checks continue using the unauthenticated loopback responder.
+The user's separately authenticated test-profile suite remains pending.
+Operational recovery of existing private jobs is separate from these test
+results; private data and recovery backups stay outside the repository.
+
+Separately, user-authorized operational retries saved four checkpoints across
+three previously failed Codex conversations. The two smaller histories finished;
+the live viewer reports zero failed captures and one remaining large backlog.
+Original transcript prefixes and old local-project Markdown match the local
+backups. This verifies those Codex recovery calls, not Claude provider behavior
+or the still-pending isolated authenticated suite.
+
+## Historical 0.3.5 verification
 
 Date: 2026-11-22. This report covers the current implementation, including the
 conversation picker, content previews, dashboard and automatic checkpoints.
 It supplements the historical v1 review in [ACCEPTANCE.md](ACCEPTANCE.md).
 
-## Result and scope
+### Result and scope
 
 All exercised checks pass after fixing four reproducible bugs. This is not a
 claim that every possible input or live provider behavior is bug-free.
@@ -15,7 +51,7 @@ files or private memory was used, changed or copied into fixtures. No API keys
 or authenticated external model calls were used. Fixtures contain invented
 project data. The normal installed executable was updated separately.
 
-## Test runs
+### Test runs
 
 | Runtime / installation | Result | Time |
 | --- | --- | --- |
@@ -32,7 +68,7 @@ strict extraction schema. JavaScript syntax and Git whitespace checks pass.
 Native versions: Codex CLI 0.171.0 and Claude Code 2.1.278. Final strengthened
 native-session parsing and MCP privacy assertions were additionally rerun.
 
-## Feature coverage
+### Feature coverage
 
 | Area | Result | Evidence |
 | --- | --- | --- |
@@ -59,7 +95,7 @@ registrations were preserved through uninstall. The viewer's Markdown/session
 registry hashes remained unchanged after browser interaction; a separate
 synthetic writer was used to verify refresh of newly saved state.
 
-## Bugs fixed by this audit
+### Bugs fixed by this audit
 
 1. **Native capture stopped before reaching a provider.** Extraction uses a
    temporary working directory, but Codex required `--skip-git-repo-check`.
@@ -76,7 +112,7 @@ synthetic writer was used to verify refresh of newly saved state.
    Parsing alone remains byte-exact; historical conversation snapshots remain
    available and unrelated sections/items are preserved.
 
-## Native CLI testing boundary
+### Native CLI testing boundary
 
 The native Codex tests run the real CLI against a loopback-only canned Responses
 server with authentication disabled. They test startup, flags, streaming,
@@ -86,7 +122,7 @@ using anyone's login or credentials. See [test_native_codex.py](tests/test_nativ
 The provider configuration is described in the
 [official Codex reference](https://learn.chatgpt.com/docs/config-file/config-reference).
 
-## Still unverified or outside this release
+### Still unverified or outside this release
 
 - Actual authenticated Codex/Claude provider extraction, provider-side schema
   enforcement, extraction quality and live Claude recaps require a separately

@@ -476,6 +476,13 @@ SSH/HTTPS remotes for the same repo map to one lowercase project ID. Subfolders,
 clones, and worktrees share it. Without a remote, the ID is `local/<folder>`;
 use `ellie link` to correct associations when necessary.
 
+If you add or change the Git remote during a chat, the next hook checkpoint
+queues capture under the folder's current project ID. An idle job under the old
+ID is replaced safely; an active extraction stops before saving if the identity
+changes. Existing saved memories stay under their original IDs and are not
+merged automatically. Moving a queued capture does not override paused or
+excluded conversations or relax an archives-off policy.
+
 Shared memory is loaded in ordinary workstream mode; explicit conversation-only
 selection excludes unrelated shared content. Workstreams contain Goal, Current state,
 Next steps, Decisions, Results, Findings, Open questions, Notes, and Log.

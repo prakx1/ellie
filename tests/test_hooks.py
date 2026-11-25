@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -159,6 +160,129 @@ class HookTests(IsolatedTest):
         self.assertTrue(jobs[0]["incremental"])
         self.assertNotIn("hidden", json.dumps(self.store.read_sessions(self.project)))
         self.assertFalse(Path(os.environ["FAKE_CALLS"]).exists())
+
+    def test_adding_a_remote_requeues_capture_under_the_current_project(self):
+        from ellie.capture import process_job
+        self.git(self.checkout, "remote", "remove", "origin")
+        local = self.store.resolve_project(self.checkout)[0]
+        session = write_session(self)
+        self.hook(session, "SessionStart")
+        self.hook(session, "Stop", turn_id="before-remote")
+        old = self.store.list_pending()[0]
+        legacy = "hook-codex-" + hashlib.sha256(session.id.encode()).hexdigest()[:32]
+        self.store.write_pending(legacy, {**old, "run_id": legacy})
+        self.store.delete_pending(old["run_id"])
+        old = self.store.read_pending(legacy)
+        self.store.add_item(local, "project", "N", "Original local history", {}, session=session.id)
+        original = self.store.memory_path(local, "project").read_bytes()
+        self.store.update_pending(old["run_id"], lambda job: job.update(
+            {"capture": "failed", "attempts": 3, "error": "Old failure", "live_items": ["N1"],
+             "live_handoffs": {"project": "2026-11-25T00:00:00Z"}}))
+        self.git(self.checkout, "remote", "add", "origin", "https://" + self.project + ".git")
+        self.hook(session, "SessionStart")
+        target = self.store.read_sessions(self.project)[session.id]["bound_memories"][0]
+        service = MemoryService(self.store)
+        self.addCleanup(service.close)
+        with service.in_session(session.id):
+            service.bind(self.project, [target], conversations=[])
+        self.hook(session, "Stop", turn_id="after-remote")
+        jobs = self.store.list_pending()
+        self.assertEqual(len(jobs), 1)
+        job = jobs[0]
+        self.assertEqual(job["project"], self.project)
+        self.assertNotEqual(job["run_id"], old["run_id"])
+        self.assertEqual(job["attempts"], 0)
+        self.assertNotIn("live_items", job)
+        self.assertNotIn("live_handoffs", job)
+        self.assertEqual(job["bound_memories"], [target])
+        self.assertEqual(job["context_conversations"], [])
+        value = empty_extraction(target)
+        value["notes"] = [{"text": "Current project checkpoint", "memory": None}]
+        Path(os.environ["FAKE_PAYLOAD"]).write_text(json.dumps(value))
+        result = process_job(self.store, job["run_id"])
+        self.assertEqual(result["capture"], "done", result)
+        self.assertEqual(self.store.read_sessions(self.project)[session.id]["items"], ["N1"])
+        self.assertEqual(self.store.get_item(self.project, "N1")[1].title, "Current project checkpoint")
+        self.assertEqual(self.store.memory_path(local, "project").read_bytes(), original)
+        self.assertEqual(self.store.list_pending(), [])
+
+    def test_project_change_during_extraction_cannot_save_into_the_old_project(self):
+        from ellie.capture import process_job
+        session = write_session(self)
+        self.hook(session, "SessionStart")
+        self.hook(session, "Stop", turn_id="before-change")
+        old = self.store.list_pending()[0]
+        target = old["bound_memories"][0]
+        original = self.store.memory_path(self.project, target).read_bytes()
+        value = empty_extraction(target)
+        value["notes"] = [{"text": "Checkpoint after changing the remote", "memory": None}]
+        current_project = "github.com/example/renamed"
+
+        def change_remote(*args, **kwargs):
+            self.git(self.checkout, "remote", "set-url", "origin", "https://" + current_project + ".git")
+            self.hook(session, "SessionStart")
+            self.hook(session, "Stop", turn_id="during-extraction")
+            # The old job is locked by process_job and must remain untouched.
+            self.assertEqual(self.store.read_pending(old["run_id"])["project"], self.project)
+            self.assertEqual(len(self.store.list_pending()), 2)
+            return value
+
+        with patch("ellie.capture.extract", side_effect=change_remote):
+            result = process_job(self.store, old["run_id"])
+        self.assertEqual(result["capture"], "failed", result)
+        self.assertIn("project identity changed during capture", result["error"])
+        self.assertEqual(self.store.memory_path(self.project, target).read_bytes(), original)
+        self.hook(session, "Stop", turn_id="after-extraction")
+        jobs = self.store.list_pending()
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0]["project"], current_project)
+        Path(os.environ["FAKE_PAYLOAD"]).write_text(json.dumps(value))
+        result = process_job(self.store, jobs[0]["run_id"])
+        self.assertEqual(result["capture"], "done", result)
+        self.assertEqual(self.store.memory_path(self.project, target).read_bytes(), original)
+        self.assertEqual(self.store.list_pending(), [])
+
+    def test_project_change_cannot_bypass_paused_or_excluded_capture(self):
+        from ellie.privacy import control
+        for action in ("pause", "exclude", "archives"):
+            with self.subTest(action=action):
+                self.git(self.checkout, "remote", "set-url", "origin", "https://" + self.project + ".git")
+                session = write_session(self)
+                self.hook(session, "SessionStart")
+                self.hook(session, "Stop", turn_id="before-privacy")
+                old = next(job for job in self.store.list_pending() if job["session_id"] == session.id)
+                if action == "archives":
+                    control(self.store, self.project, archives="off")
+                else:
+                    control(self.store, self.project, action, session.id if action == "exclude" else None)
+                try:
+                    self.git(self.checkout, "remote", "set-url", "origin", "https://github.com/example/" + action + ".git")
+                    self.hook(session, "SessionStart")
+                    self.hook(session, "Stop", turn_id="after-privacy")
+                    jobs = [job for job in self.store.list_pending() if job["session_id"] == session.id]
+                    self.assertEqual(jobs, [old])
+                finally:
+                    if action == "archives":
+                        control(self.store, self.project, archives="filtered")
+                    else:
+                        control(self.store, self.project, "include" if action == "exclude" else "resume",
+                                session.id if action == "exclude" else None)
+        self.assertFalse(Path(os.environ["FAKE_CALLS"]).exists())
+
+    def test_legacy_job_is_reused_when_the_project_has_not_changed(self):
+        session = write_session(self)
+        self.hook(session, "SessionStart")
+        self.hook(session, "Stop", turn_id="before")
+        old = self.store.list_pending()[0]
+        legacy = "hook-codex-" + hashlib.sha256(session.id.encode()).hexdigest()[:32]
+        self.store.write_pending(legacy, {**old, "run_id": legacy})
+        self.store.delete_pending(old["run_id"])
+        self.hook(session, "Stop", turn_id="after")
+        jobs = self.store.list_pending()
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0]["run_id"], legacy)
+        self.assertEqual(jobs[0]["project"], self.project)
+        self.assertEqual(jobs[0]["generation"], old["generation"] + 1)
 
     def test_checkpoints_capture_only_new_records_and_retain_source_conversation(self):
         from ellie.capture import process_job

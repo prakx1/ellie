@@ -255,7 +255,7 @@ agent integration. Existing memories and unrelated settings are preserved.
 ## Documentation and verification
 
 - [User guide](docs/guide.md) — detailed setup, workflows, commands, configuration, and troubleshooting.
-- [Verification report](QA_REPORT.md) — 141 tests passed in each of four recorded runs for v0.3.5, browser checks, and the remaining live-provider checks.
+- [Verification report](QA_REPORT.md) — test results across Python versions, capture regressions, browser checks, and remaining live-provider checks.
 - [v1 specification](spec.md) and [acceptance review](ACCEPTANCE.md) — the design and original acceptance results.
 - [Report an issue](https://github.com/prakx1/ellie/issues) — include `ellie --version`, the agent version, and relevant diagnostics with private data removed.
 

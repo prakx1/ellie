@@ -323,6 +323,8 @@ def process_job(store, run_id: str) -> dict:
                             pieces.append(piece)
                         transcript = "\n".join(pieces)
                     value = extract(session, store, project, job.get("memories", []), config, transcript=transcript)
+                    if store.resolve_project(session.cwd)[0] != project:
+                        raise ValueError("project identity changed during capture; retry from the current project")
                     # Fetch live handoff markers again after the model returns.
                     job = {**job, **store.read_pending(run_id)}
                     reason = blocked(store, project, session.id)
