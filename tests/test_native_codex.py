@@ -113,3 +113,26 @@ class NativeCodexTests(IsolatedTest):
         self.assertEqual(json.loads(output.read_text()), self.value)
         self.assertEqual({path: path.read_bytes() for path in Path(os.environ["CODEX_HOME"]).glob("sessions/**/*.jsonl")}, original)
         self.assertTrue(all(not request["has_auth"] for request in self.requests))
+
+    def test_persisted_branch_can_be_forked_by_its_physical_history_id(self):
+        seed = self.root / "seed"
+        command, _ = self.command(seed)
+        command.remove("--ephemeral")
+        self.execute(command, seed)
+        root = Path(os.environ["CODEX_HOME"])
+        parent_path = next(root.glob("sessions/**/*.jsonl"))
+        parent = adapter("codex").read(parent_path)
+        branch = self.root / "branch"
+        command, _ = self.command(branch, parent.history_id)
+        command.remove("--ephemeral")
+        self.execute(command, branch)
+        child_path = next(path for path in root.glob("sessions/**/*.jsonl") if path != parent_path)
+        child = adapter("codex").read(child_path)
+        self.assertNotEqual(child.history_id, parent.history_id)
+        originals = {path: path.read_bytes() for path in root.glob("sessions/**/*.jsonl")}
+        extraction = self.root / "branch-extraction"
+        command, output = self.command(extraction, child.history_id)
+        self.execute(command, extraction)
+        self.assertEqual(json.loads(output.read_text()), self.value)
+        self.assertEqual({path: path.read_bytes() for path in root.glob("sessions/**/*.jsonl")}, originals)
+        self.assertTrue(all(not request["has_auth"] for request in self.requests))

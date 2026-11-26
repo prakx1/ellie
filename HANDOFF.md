@@ -17,6 +17,58 @@ under .git; they are not pushed. The repair was published with an explicit
 force-with-lease check against the original remote tip. Runtime code and
 private memory are unchanged by this attribution correction.
 
+## Capture reliability repair (0.3.7, 2026-11-26)
+
+Fixed Codex physical rollout identity versus logical conversation provenance.
+Ancestry lookup, cycle checks, archive names and native forks use physical IDs;
+bindings and item sources keep logical IDs. Successful cursors are tracked per
+physical source. Unknown, mismatched or invalid cursors restart from zero rather
+than skipping activity. Explicit transcript paths disambiguate branches and are
+retained in backfill jobs. Store's public interface is unchanged.
+
+Model input normalizes embedded images, encrypted reasoning, internal compaction
+replay metadata and exact derived command duplicates. Message history and normal
+text/code remain. Original filtered archives and source bytes are unchanged by
+this projection. A live recovery exposed Codex's whole-input 1048576-character
+limit; checkpoint budgets now reserve instructions, selected memory context,
+framing and bounded schema-retry space, conservatively counting UTF-8 bytes.
+Genuinely oversized text records remain explicit, retryable failures.
+
+All 155 tests pass on Python 3.10.20 (141.4s) and 3.14.3 (123.1s). Ten focused
+checks pass from a clean installed wheel (9.1s), with source imports excluded.
+Native Codex tests use an unauthenticated loopback responder, including a
+persisted branch forked again without modifying any original transcript.
+The user's installed 0.3.7 runtime matches all 31 wheel/source files and has no
+runtime dependencies. Same-version development reinstalls bypass uv's build
+cache; version strings alone do not prove the installed source is current.
+
+Separately authorized operational recovery backed up queue/project records
+locally outside Git, verified seven legacy cursors against actual archives, and
+retired an obsolete wrong-project job only after finding its valid counterpart
+and confirming its live items remain saved. A historical registration's obsolete
+error is retained as history while current capture continues under its existing
+replacement project. No saved memories were moved or merged across projects.
+
+All ten identified valid failed jobs saved a checkpoint through the normal
+Codex CLI. Two finished; eight large-history jobs remain pending across seven
+project entries. Final verification finds no failed jobs or registry failures,
+no duplicate item IDs, all 578 backed-up item IDs retained, ten original source
+prefixes unchanged, old historical Markdown unchanged and SQLite quick_check ok.
+The dashboard was restarted and serves HTTP 200 for all 15 registered entries.
+Some entries are historical aliases or live saves without extraction evidence;
+queue health is not a claim that every entry has verified automatic extraction.
+
+The normal-profile doctor passes all 21 checks, including Claude login and MCP.
+Operational probes must preserve the original CLAUDE_CONFIG_DIR setting;
+explicitly setting it can select a different configuration/authentication scope.
+Normal Claude login is confirmed after the owner signed in. Authenticated
+isolated Claude end-to-end extraction remains a separate pending check; never
+copy real credentials into test profiles. Development/tests used temporary
+HOME/CODEX_HOME/ELLIE_HOME/Claude/XDG roots and invented fixtures throughout.
+Private audit reports, transcripts, session IDs and backups stay outside Git.
+Next: let queued histories catch up through normal hooks or explicit capture;
+complete provider checks only with separately authenticated isolated profiles.
+
 ## Capture project identity repair (0.3.6, 2026-11-25)
 
 Reproduced a hook job retaining its local project ID after the same folder
@@ -448,8 +500,8 @@ Python 3.10 and 3.15 are under python/cpython-<version>-macos-aarch64-none/bin/;
 Python 3.14 is /opt/homebrew/bin/python3.14. README also documents a fresh test
 home setup that does not depend on these temporary paths.
 
-Only the explicitly requested Step 0 session inspection used real agent state,
-read-only. No development/tests modified real agent configuration, the real
-Ellie store, or credentials. The user's installed CLI was upgraded separately
-from tests; integration config and existing memories remain intact. No live
-model calls or API keys were used.
+The initial v1 development used real agent state only for the explicitly
+requested read-only Step 0 inspection. Subsequent user-authorized operational
+recovery and CLI upgrades are documented separately above. Development/tests
+remain isolated from real agent configuration, memory and credentials. No API
+keys are used; normal operational extraction runs through the owner's CLIs.

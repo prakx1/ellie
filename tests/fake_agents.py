@@ -48,6 +48,20 @@ def write_session(test, agent="codex", *, id=None, count=2, paginated=False, cwd
     return adapter(agent).read(path)
 
 
+def write_codex_branch(parent, *, padding=0):
+    records = [json.loads(line) for line in parent.path.read_text().splitlines()]
+    records[0]["payload"].update({"session_id": parent.id, "history_mode": "paginated",
+        "history_base": {"thread_id": parent.path.stem[-36:],
+                         "end_byte_offset": parent.path.stat().st_size,
+                         "end_ordinal_exclusive": len(records)}})
+    if padding:
+        records.insert(1, {"timestamp": records[0]["timestamp"], "type": "event_msg",
+                           "payload": {"type": "user_message", "message": "X" * padding}})
+    path = parent.path.with_name(parent.path.stem + "_" + str(uuid.uuid4()) + ".jsonl")
+    path.write_text("".join(json.dumps(record) + "\n" for record in records))
+    return adapter("codex").read(path)
+
+
 FAKE_SCRIPT = r'''
 import json, os, pathlib, sys, time
 args=sys.argv[1:]
@@ -78,6 +92,8 @@ counter=pathlib.Path(os.environ['FAKE_COUNTER'])
 count=int(counter.read_text())+1 if counter.exists() else 1
 counter.write_text(str(count))
 prompt=sys.stdin.read()
+if len(prompt.encode('utf-8'))>int(os.environ.get('FAKE_MAX_INPUT','10000000')):
+    print('Input exceeds the maximum length',file=sys.stderr); raise SystemExit(1)
 with pathlib.Path(os.environ['FAKE_CALLS']).open('a') as log:
     log.write(json.dumps({'agent':agent,'args':args,'prompt':prompt,'cwd':os.getcwd(),'has_api_key':bool(os.environ.get('OPENAI_API_KEY') or os.environ.get('ANTHROPIC_API_KEY'))})+'\n')
 mode=os.environ.get('FAKE_MODE','valid')

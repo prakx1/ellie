@@ -15,7 +15,7 @@ import time
 import uuid
 
 from .agents import Discovery, Session, adapter, timestamp
-from .extract import extract, target_memory
+from .extract import checkpoint_budget, extract, target_memory
 from .model import normalized_title
 from .paths import project_id
 from .redact import redact
@@ -51,20 +51,43 @@ def discover_project(store, project: str, *, agent: str | None = None, since: da
     return result
 
 
+def _source_checkpoint(session: Session, record: dict) -> dict:
+    saved = record.get("source_checkpoints", {}).get(session.history_id)
+    if saved is not None:
+        return saved
+    if record.get("source_history_id") == session.history_id:
+        return {"version": record.get("source_version"), "capture": record.get("capture"),
+                "ancestry": record.get("ancestry", [])}
+    return {}
+
+
 def captured(session: Session, registry: dict) -> bool:
-    record = registry.get(session.id, {})
-    return record.get("capture") in {"done", "skipped"} and record.get("source_version") == session.version
+    checkpoint = _source_checkpoint(session, registry.get(session.id, {}))
+    return checkpoint.get("capture") in {"done", "skipped"} and checkpoint.get("version") == session.version
+
+
+def _checkpoint_offset(session: Session, record: dict) -> int:
+    """An old cursor is usable only for the same physical JSONL source."""
+    version = _source_checkpoint(session, record).get("version")
+    offset = version[1] if isinstance(version, list) and len(version) == 2 else 0
+    if isinstance(offset, bool) or not isinstance(offset, int) or not 0 < offset <= session.version[1]:
+        return 0
+    with session.path.open("rb") as stream:
+        stream.seek(offset - 1)
+        return offset if stream.read(1) == b"\n" else 0
 
 
 def match_session(job: dict, sessions: list[Session], preferred: str | None = None) -> Session:
     agent = "claude" if job["agent"] == "claude-code" else job["agent"]
     candidates = [s for s in sessions if s.agent == agent]
+    if job.get("transcript_path"):
+        candidates = [s for s in candidates if s.path.resolve() == Path(job["transcript_path"]).resolve()]
     if job.get("session_id"):
         candidates = [s for s in candidates if s.id == job["session_id"]]
     else:
         started = timestamp(job["started"])
         before = job.get("before_sessions", {})
-        candidates = [s for s in candidates if s.version != before.get(s.id)
+        candidates = [s for s in candidates if s.version != before.get(s.history_id, before.get(s.id))
                       and s.ended >= started - timedelta(seconds=5)
                       and Path(s.cwd).resolve() == Path(job["cwd"]).resolve()]
     if preferred:
@@ -209,12 +232,12 @@ def merge(store, project: str, session: Session, job: dict, value: dict) -> tupl
 
 
 def _archives(store, project: str, session: Session, *, enabled=True, primary_size=None, start_byte=None) -> tuple[str | None, list[dict], list[Session]]:
-    primary = f"{session.started.astimezone().date().isoformat()}_{session.agent}_{session.id}.jsonl.gz"
+    primary = f"{session.started.astimezone().date().isoformat()}_{session.agent}_{session.history_id}.jsonl.gz"
     if start_byte is not None:
         primary = primary.replace(".jsonl.gz", f"_part-{start_byte}-{primary_size}.jsonl.gz")
     ancestry, parents = [], []
     base = session.history_base if not start_byte else None
-    seen = {session.id}
+    seen = {session.history_id}
     while base:
         if not isinstance(base, dict) or "thread_id" not in base:
             raise ValueError("unsupported Codex parent-history reference")
@@ -225,7 +248,7 @@ def _archives(store, project: str, session: Session, *, enabled=True, primary_si
         if isinstance(size, bool) or not isinstance(size, int):
             raise ValueError("Codex history prefix has no supported byte boundary")
         parent = adapter("codex").find_ancestor(base["thread_id"], limit_bytes=size)
-        name = f"{parent.started.astimezone().date().isoformat()}_codex_{parent.id}_prefix-{size}.jsonl.gz"
+        name = f"{parent.started.astimezone().date().isoformat()}_codex_{parent.history_id}_prefix-{size}.jsonl.gz"
         if enabled:
             store.archive_transcript(project, parent.path, name, limit_bytes=size, filter_private=True)
         ancestry.append({**base, "archive": name if enabled else None})
@@ -288,29 +311,28 @@ def process_job(store, run_id: str) -> dict:
                 registry = store.read_sessions(project)
                 if captured(session, registry):
                     store.finish_pending(run_id, generation)
-                    return {"capture": registry[session.id]["capture"], "session_id": session.id}
+                    return {"capture": _source_checkpoint(session, registry[session.id])["capture"], "session_id": session.id}
                 version = session.version
+                config = {**DEFAULTS, **store.read_local("config"),
+                          "context_conversations": job.get("context_conversations"),
+                          "bound_memories": job.get("bound_memories"), "current_session": session.id}
                 transcript, offset = None, None
                 if job.get("incremental"):
-                    offset = registry.get(session.id, {}).get("source_version", [0, 0])[1]
-                    if offset > version[1]:
-                        offset = 0
-                    transcript, end = read_chunk(session.path, offset, upto=version[1])
+                    offset = _checkpoint_offset(session, registry.get(session.id, {}))
+                    prefix = f"Conversation {session.id}; new activity from source byte {offset}.\n"
+                    budget = checkpoint_budget(store, project, job.get("memories", []), config, prefix)
+                    transcript, end = read_chunk(session.path, offset, upto=version[1], max_bytes=budget)
                     version = [version[0], end]
-                    transcript = f"Conversation {session.id}; new activity from source byte {offset}.\n" + transcript
+                    transcript = prefix + transcript
                 store.ensure_project(project)
                 store.update_sessions(project, lambda data: data.setdefault(session.id, {}).update({"capture": "running", "agent": session.agent}))
                 archive, ancestry, parents = _archives(store, project, session, enabled=policy(store, project)["archives"] != "off", primary_size=version[1], start_byte=offset)
                 if offset:
-                    ancestry = registry.get(session.id, {}).get("ancestry", [])
+                    ancestry = _source_checkpoint(session, registry.get(session.id, {})).get("ancestry", [])
                 store.update_sessions(project, lambda data: data[session.id].update({"archive": archive, "ancestry": ancestry}))
                 if session.user_messages + sum(parent.user_messages for parent in parents) < 2 and not job.get("incremental"):
                     ids, target, status = [], "project", "skipped"
                 else:
-                    config = {**DEFAULTS, **store.read_local("config")}
-                    config["context_conversations"] = job.get("context_conversations")
-                    config["bound_memories"] = job.get("bound_memories")
-                    config["current_session"] = session.id
                     filtered = False if job.get("incremental") else needs_filtering(session.path, version[1]) or any(needs_filtering(parent.path, entry["end_byte_offset"]) for parent, entry in zip(parents, ancestry))
                     if not job.get("incremental") and (filtered or config["extract_with"] not in {"same", session.agent}):
                         pieces = []
@@ -341,9 +363,12 @@ def process_job(store, run_id: str) -> dict:
                         "launched_by": job.get("launched_by", "ellie"), "capture": status,
                         "items": list(dict.fromkeys([*previous.get("items", []), *ids])),
                         "archive": archive, "ancestry": ancestry, "source_version": version,
+                        "source_history_id": session.history_id,
                         "title": previous.get("title") or _line(session.first_user_message)[:140],
                         "last_capture": now(), "filtered_archive": True}
                     data[session.id].pop("error", None)
+                    data[session.id].setdefault("source_checkpoints", {})[session.history_id] = {
+                        "version": version, "capture": status, "ancestry": ancestry}
                     if job.get("incremental") and archive:
                         parts = data[session.id].setdefault("archive_parts", [])
                         if not any(part["archive"] == archive for part in parts):
@@ -444,6 +469,7 @@ def plan_jobs(store, project: str, *, since: str = "7d", session_id: str | None 
             continue
         run_id = str(uuid.uuid4())
         jobs.append({"run_id": run_id, "project": project, "agent": session.agent, "session_id": session.id,
+                     "transcript_path": str(session.path),
                      "cwd": session.cwd, "started": session.started.isoformat(), "ended": session.ended.isoformat(),
                      "memories": [], "capture": "pending", "launched_by": "external", "source": source})
     if session_id and not jobs and not any(session.id == session_id for session in found.sessions):

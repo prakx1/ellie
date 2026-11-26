@@ -1,5 +1,55 @@
 # Ellie verification
 
+## 0.3.7 physical history and checkpoint repair — 2026-11-26
+
+Synthetic regressions reproduced shared logical IDs across distinct Codex
+rollouts, false ancestry cycles, missing physical parents, cursor reuse inside
+another branch, ambiguous matching despite an explicit transcript, and image or
+duplicated-command records exceeding the model input budget. Capture now tracks
+physical sources separately while preserving logical conversation provenance.
+Each source has its own successful checkpoint; resumed branches retain theirs.
+
+Model text fits the CLI's one-MiB input limit after reserving instructions,
+selected memory context and a bounded schema correction. Opaque images,
+encrypted reasoning, internal replay metadata and exact derived command
+duplicates become explicit placeholders; replacement message history remains.
+Tests retain ordinary command/text content, validate raw-byte cursor boundaries,
+restore archives, assert the source is unchanged, and keep truly oversized text
+as a retryable failure. Codex and Claude image formats are covered.
+
+All development checks use temporary HOME/CODEX_HOME/ELLIE_HOME/Claude/XDG
+profiles and synthetic data. A native Codex test persists a branch and forks it
+again through an unauthenticated loopback responder, asserting that extraction
+leaves all existing transcripts unchanged. These deterministic checks do not
+substitute for authenticated provider-quality verification.
+
+| Check | Result |
+| --- | --- |
+| Full source suite, Python 3.10.20 | 155 passed in 141.4s |
+| Full source suite, Python 3.14.3 | 155 passed in 123.1s |
+| Regressions from a clean installed wheel | 10 passed in 9.1s |
+| Wheel/source/user-install runtime comparison | All 31 files match; version 0.3.7; zero runtime dependencies |
+
+Operational recovery is performed separately using the owner's installed CLI.
+Queue and project metadata are backed up locally outside Git. Legacy cursors
+are migrated only after exact archive/source comparison; a moved-source job is
+retired only after locating its valid counterpart and verifying its live items
+remain saved. Existing memory is not moved across project namespaces. Normal
+Claude login is confirmed; authenticated isolated Claude extraction remains a
+separate pending verification. No private project names, IDs, memory, transcripts
+or recovery artifacts are included in this repository.
+
+All ten identified valid failed jobs subsequently saved a checkpoint through
+the owner's Codex CLI. Two finished; eight large histories remain queued.
+The final operational audit finds zero failed jobs/registry records, all 578
+backed-up item IDs preserved, ten original source prefixes unchanged, historical
+Markdown unchanged, no duplicate IDs and SQLite quick_check ok. The restarted
+viewer serves all 15 registered entries. This is bounded recovery evidence;
+queued histories are still catching up and some legacy/live-only entries have
+no completed automatic extraction to assess.
+The normal-profile doctor also passes all 21 checks, including Claude login,
+MCP registration and lifecycle hook configuration.
+
 ## 0.3.6 project identity repair — 2026-11-25
 
 A regression reproduced a hook capture retaining its local project ID after

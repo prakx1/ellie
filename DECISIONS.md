@@ -1,5 +1,33 @@
 # Decisions
 
+## Physical history and extraction checkpoints (0.3.7, 2026-11-26)
+
+- Codex rollout filenames can identify different physical branches with the
+  same logical chat ID in their metadata. Preserve the logical ID for bindings
+  and memory provenance; use the physical UUID for native forks, ancestry cycle
+  checks, archive filenames, launcher snapshots and checkpoint bookkeeping.
+  Explicit transcript paths select a branch; genuine launcher ambiguity still
+  requires a choice. Backfill jobs retain their discovered source path.
+- Store successful checkpoints per physical source within a conversation's
+  existing registry record. A cursor without matching source identity, outside
+  the file, or inside a record restarts from zero. This favors deduplicated
+  replay over silently skipping new branch activity. Legacy cursor migration
+  requires separately verified archive/source agreement; never guess from
+  byte length alone. Existing saved items are not moved between projects.
+- The installed Codex CLI limits the entire turn/start input to 1048576
+  characters. Budget checkpoints within that limit after reserving instructions,
+  selected memory context, transcript framing and a bounded schema correction.
+  Keep offsets in original source bytes. Replace inline binary images and opaque
+  encrypted reasoning and internal compaction replay metadata with explicit
+  placeholders; keep the replacement message history. Replace a parsed command
+  only when it exactly duplicates a retained command. Keep ordinary text/code
+  intact. Truly oversized text records remain explicit, retryable failures.
+  Filtered archives retain the full original data when archiving is enabled;
+  the model projection never changes source files or archive contents.
+- Keep all changes behind the existing Store interface. Private operational
+  recovery, local backups and normal CLI authentication remain separate from
+  synthetic tests using temporary profiles and unauthenticated loopback models.
+
 ## Capture jobs after project identity changes (0.3.6, 2026-11-25)
 
 - A Git remote can appear or change during a native chat. New hook jobs include

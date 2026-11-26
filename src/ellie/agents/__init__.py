@@ -33,6 +33,16 @@ class Session:
     is_subagent: bool = False
 
     @property
+    def history_id(self) -> str:
+        """Physical rollout identity; Codex branches can share a logical ID."""
+        if self.agent == "codex":
+            try:
+                return session_id(self.path.stem[-36:])
+            except ValueError:
+                pass
+        return self.id
+
+    @property
     def version(self) -> list[int]:
         stat = self.path.stat()
         return [stat.st_mtime_ns, stat.st_size]

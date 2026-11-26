@@ -79,23 +79,68 @@ def needs_filtering(path, limit_bytes=None) -> bool:
     return False
 
 
-def read_chunk(path, offset: int = 0, *, upto: int | None = None, max_bytes: int = 1_000_000):
-    """Read complete JSONL records at an agent-owned byte boundary, filtering text."""
+def _model_value(value):
+    """Omit opaque media and exact derived duplicates from model text only."""
+    if isinstance(value, str):
+        if value.startswith("data:image/") and ";base64," in value:
+            return "[embedded image omitted from text extraction]"
+        return value
+    if isinstance(value, list):
+        return [_model_value(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    result = {key: _model_value(item) for key, item in value.items()}
+    if (value.get("type") == "base64" and str(value.get("media_type", "")).startswith("image/")
+            and isinstance(value.get("data"), str)):
+        result["data"] = "[embedded image omitted from text extraction]"
+    if value.get("type") in ("reasoning", "compaction") and isinstance(value.get("encrypted_content"), str):
+        result["encrypted_content"] = "[encrypted reasoning omitted from text extraction]"
+    if value.get("type") == "compacted" and isinstance(result.get("payload"), dict):
+        payload = result["payload"]
+        if "replacement_history_metadata" in payload:
+            payload["replacement_history_metadata"] = "[agent replay metadata omitted; replacement history retained above]"
+    command = value.get("command", [])
+    if isinstance(command, str):
+        command = [command]
+    if isinstance(command, list) and isinstance(value.get("parsed_cmd"), list):
+        for original, projected in zip(value["parsed_cmd"], result["parsed_cmd"]):
+            if isinstance(original, dict) and isinstance(original.get("cmd"), str) and original["cmd"] in command:
+                projected["cmd"] = "[exact duplicate of command above]"
+    return result
+
+
+def _model_line(line: bytes) -> bytes:
+    if not line.strip():
+        return line
+    original = json.loads(line)
+    projected = _model_value(filter_value(original))
+    if projected == original:
+        return line
+    return json.dumps(projected, ensure_ascii=False).encode("utf-8") + (b"\n" if line.endswith(b"\n") else b"")
+
+
+def read_chunk(path, offset: int = 0, *, upto: int | None = None, max_bytes: int = 1_048_576):
+    """Budget model text, while returning a cursor in the original JSONL bytes."""
     chunks, used = [], 0
     with path.open("rb") as stream:
+        if offset:
+            stream.seek(offset - 1)
+            if stream.read(1) != b"\n":
+                raise ValueError("transcript cursor is not at a JSONL record boundary")
         stream.seek(offset)
         while upto is None or stream.tell() < upto:
             position = stream.tell()
             line = stream.readline(-1 if upto is None else upto - position)
             if not line:
                 break
-            if used + len(line) > max_bytes:
+            projected = _model_line(line)
+            if used + len(projected) > max_bytes:
                 if not chunks:
                     raise ValueError("one transcript record exceeds the automatic checkpoint limit")
                 stream.seek(position)
                 break
-            chunks.append(filtered_line(line))
-            used += len(line)
+            chunks.append(projected)
+            used += len(projected)
         end = stream.tell()
     return b"".join(chunks).decode("utf-8"), end
 

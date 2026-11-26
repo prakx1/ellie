@@ -10,14 +10,104 @@ import time
 import uuid
 from unittest.mock import patch
 
-from ellie.capture import plan_jobs, process_job, start_background, uncaptured_status
+from ellie.capture import captured, match_session, plan_jobs, process_job, start_background, uncaptured_status
 from ellie.extract import SCHEMA
 from ellie.service import MemoryService
-from tests.fake_agents import empty_extraction, install_fakes, write_session
+from tests.fake_agents import empty_extraction, install_fakes, write_codex_branch, write_session
 from tests.support import IsolatedTest
 
 
 class CaptureTests(IsolatedTest):
+    def test_checkpoint_reserves_space_for_context_instructions_and_schema_retry(self):
+        session = write_session(self)
+        self.store.update_memory(self.project, "work", lambda memory: memory.set_section("Current state", "context 🐘 " * 8000))
+        with session.path.open("a") as stream:
+            for label in ("First record ", "Second record "):
+                stream.write(json.dumps({"type": "event_msg", "payload": {"type": "agent_message", "message": label + "z" * 500_000}}) + "\n")
+        self.save_payload()
+        run = self.job(session)
+        self.store.update_pending(run, lambda job: job.update({"incremental": True, "transcript_path": str(session.path)}))
+        with patch.dict(os.environ, {"FAKE_MAX_INPUT": "1048576", "FAKE_MODE": "invalid-then-valid"}):
+            first = process_job(self.store, run)
+            self.assertEqual(first["capture"], "done", first)
+            self.assertTrue(first["more"])
+            second = process_job(self.store, run)
+            self.assertEqual(second["capture"], "done", second)
+            self.assertFalse(second["more"])
+        self.assertEqual(len(self.calls()), 3)
+        self.assertTrue(all(len(call["prompt"].encode("utf-8")) <= 1_048_576 for call in self.calls()))
+        self.assertIn("First record", self.calls()[0]["prompt"])
+        self.assertIn("Second record", self.calls()[-1]["prompt"])
+        record = self.store.read_sessions(self.project)[session.id]
+        self.assertEqual(record["source_version"], session.version)
+
+    def test_explicit_transcript_selects_one_branch_of_a_logical_session(self):
+        parent = write_session(self)
+        child = write_codex_branch(parent)
+        job = {"agent": "codex", "session_id": parent.id, "transcript_path": str(child.path)}
+        self.assertEqual(match_session(job, [parent, child]).path, child.path)
+
+    def test_backfill_and_checkpoints_track_each_physical_branch(self):
+        parent = write_session(self)
+        child = write_codex_branch(parent)
+        self.save_payload()
+        jobs, errors = plan_jobs(self.store, self.project, session_id=parent.id)
+        self.assertEqual(errors, [])
+        self.assertEqual({job["transcript_path"] for job in jobs}, {str(parent.path), str(child.path)})
+        for session in (parent, child):
+            run = self.job(session)
+            self.store.update_pending(run, lambda job: job.update({"incremental": True, "transcript_path": str(session.path)}))
+            self.assertEqual(process_job(self.store, run)["capture"], "done")
+        registry = self.store.read_sessions(self.project)
+        self.assertTrue(captured(parent, registry))
+        self.assertTrue(captured(child, registry))
+        with parent.path.open("a") as stream:
+            stream.write(json.dumps({"type": "event_msg", "payload": {"type": "user_message", "message": "New parent activity"}}) + "\n")
+        run = self.job(parent)
+        self.store.update_pending(run, lambda job: job.update({"incremental": True, "transcript_path": str(parent.path)}))
+        self.assertEqual(process_job(self.store, run)["capture"], "done")
+        self.assertIn("New parent activity", self.calls()[-1]["prompt"])
+        self.assertNotIn("User prompt 0", self.calls()[-1]["prompt"])
+
+    def test_incremental_cursor_does_not_follow_a_different_branch_or_unknown_source(self):
+        parent = write_session(self)
+        child = write_codex_branch(parent, padding=3000)
+        self.save_payload()
+        for identity, offset in ((parent.history_id, parent.version[1]), (None, 123), (child.history_id, 123)):
+            with self.subTest(identity=identity):
+                self.store.update_sessions(self.project, lambda data: data.update({child.id: {
+                    "capture": "done", "source_version": [child.version[0], offset], "source_history_id": identity}}))
+                run = self.job(child)
+                self.store.update_pending(run, lambda job: job.update({"incremental": True, "transcript_path": str(child.path)}))
+                result = process_job(self.store, run)
+                self.assertEqual(result["capture"], "done", result)
+                self.assertIn("new activity from source byte 0.", self.calls()[-1]["prompt"])
+                record = self.store.read_sessions(self.project)[child.id]
+                self.assertEqual(record["source_history_id"], child.history_id)
+                self.assertEqual(record["source_version"], child.version)
+        self.assertFalse(captured(child, {child.id: {"capture": "done", "source_version": child.version,
+                                                   "source_history_id": parent.history_id}}))
+
+    def test_branches_sharing_a_logical_session_have_distinct_valid_ancestry(self):
+        parent = write_session(self)
+        middle = write_codex_branch(parent)
+        child = write_codex_branch(middle)
+        original = {session.path: session.path.read_bytes() for session in (parent, middle, child)}
+        self.save_payload()
+        run = self.job(child)
+        self.store.update_pending(run, lambda job: job.update({"transcript_path": str(child.path)}))
+        result = process_job(self.store, run)
+        self.assertEqual(result["capture"], "done", result)
+        record = self.store.read_sessions(self.project)[child.id]
+        self.assertEqual(len(record["ancestry"]), 2)
+        archives = [record["archive"], *(entry["archive"] for entry in record["ancestry"])]
+        self.assertEqual(len(set(archives)), 3)
+        for session, archive in zip((child, middle, parent), archives):
+            stored = self.store.path("projects", self.project, "sessions", archive)
+            self.assertEqual(gzip.decompress(stored.read_bytes()), original[session.path])
+        self.assertEqual(self.calls()[0]["args"][-2], child.path.stem[-36:])
+        self.assertTrue(all(path.read_bytes() == value for path, value in original.items()))
+
     def test_capture_preserves_live_version_when_another_conversation_changed_item(self):
         session = write_session(self)
         id = self.store.add_item(self.project, "work", "Q", "Which provider?", {"status": "open"}, session=session.id)

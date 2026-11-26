@@ -392,6 +392,9 @@ complete transcript records through a fresh ephemeral CLI run. Large sessions
 are processed in batches; gzip parts record their source byte ranges. Jobs
 queued during extraction remain pending for the next batch. Automatic workers
 attempt a failed job at most three times, then retain it for explicit retry.
+Codex branches can share a conversation ID. Ellie keeps a separate checkpoint
+for each physical rollout, so switching branches cannot reuse another branch's
+byte cursor. Older cursors without verified source identity restart safely.
 Capture set to `ask` keeps the launcher's exit prompt; hooks do not launch models
 in that mode. `--no-capture` on the launcher also disables hook extraction.
 
@@ -422,7 +425,9 @@ The launcher's final review and manual capture/backfill use this pipeline:
 
 Native extraction uses the source agent's saved conversation. An explicit
 `extract_with` override starts a fresh ephemeral run with archived transcript
-context, capped at 2000000 characters. Native session IDs cannot cross agents.
+context. Fresh input fits a one-MiB CLI limit including instructions, selected
+memory and retry space. Automatic checkpoints adapt their transcript budget to
+that overhead. Native session IDs cannot cross agents.
 
 Without active/trusted hooks, use `ellie capture` or `ellie backfill` for ordinary
 sessions. Resumed sessions become uncaptured again when their source changes.
@@ -432,8 +437,13 @@ history uses fresh extraction rather than a native resume of unfiltered content.
 
 Upstream transcript truncation cannot be undone. Missing Codex parent history
 or partially written JSONL is reported; the job remains available for retry.
-A single JSONL record over 1000000 bytes also stays pending with a clear error;
-it is not silently skipped.
+For text extraction, embedded images, encrypted reasoning and internal replay
+metadata become placeholders; exact derived command duplicates are removed.
+Message history and ordinary text/code are retained. Filtered archives keep the
+original data when archiving is enabled. If one record's remaining text exceeds
+the available model budget, it stays pending with a clear error and is not
+silently skipped. A queued large history can need several checkpoints before
+its saved progress catches up to the latest turn.
 
 ## Privacy and save status
 

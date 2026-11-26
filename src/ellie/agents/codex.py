@@ -114,7 +114,7 @@ def find_ancestor(id: str, *, limit_bytes: int | None = None) -> Session:
             if limit_bytes is not None and (limit_bytes <= 0 or limit_bytes > path.stat().st_size):
                 raise ValueError("invalid or unavailable Codex history prefix")
             session = read(path, limit_bytes=limit_bytes)
-            if session is not None and session.id == id:
+            if session is not None and session.history_id == id:
                 return session
     raise ValueError("missing Codex parent history: " + id)
 
