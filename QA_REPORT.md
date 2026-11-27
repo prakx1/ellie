@@ -1,5 +1,25 @@
 # Ellie verification
 
+## Live Claude operational capture — 2026-11-27
+
+An owner-initiated conversation provides the first observed normal-profile
+Claude capture evidence: successful startup/stop hooks, two completed MCP
+finding saves, and two additional items from automatic extraction with matching
+Claude/auto conversation provenance. Capture is done, the saved source version
+matches the current native file, and no jobs are pending or failed for the
+project. The configured extraction engine is the source agent.
+
+The session's 60-second prompt-hook cancellation explicitly names the separate
+claude-mem plugin. Ellie's recorded startup/stop/tool hooks exited successfully
+in 0.294–1.074 seconds. No Ellie code or integration changes were needed for
+this reported timeout, and the other plugin was not disabled.
+
+Verification used read-only operational metadata and trace inspection. No new
+model calls, chat replay, user-repository writes or private test fixtures were
+introduced. This confirms the observed workflow; it does not complete the
+separate authenticated isolated-provider suite or establish provider behavior
+for every possible conversation. Private identifiers/content remain local.
+
 ## 0.3.7 physical history and checkpoint repair — 2026-11-26
 
 Synthetic regressions reproduced shared logical IDs across distinct Codex

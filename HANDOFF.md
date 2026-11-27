@@ -17,6 +17,28 @@ under .git; they are not pushed. The repair was published with an explicit
 force-with-lease check against the original remote tip. Runtime code and
 private memory are unchanged by this attribution correction.
 
+## Live Claude capture evidence (2026-11-27)
+
+Read-only operational inspection of an owner-initiated Claude Code conversation
+now confirms the normal-profile workflow: SessionStart and Stop hooks completed,
+two MCP finding calls saved items, and automatic extraction saved an additional
+decision and question with Claude/auto provenance for that same conversation.
+The registry is done, its source version matches the current native transcript,
+and the project has zero pending or failed jobs. Extraction is configured for
+the same agent. SessionStart took 1.074s, Stop 0.629s; observed Ellie tool hooks
+completed in 0.294–0.556s with exit code zero.
+
+The reported 60-second UserPromptSubmit cancellation identifies the separate
+claude-mem plugin's session-init command. Its startup/context commands also
+timed out. Ellie configuration and saved memory were left unchanged; this
+investigation did not disable other plugins, invoke a new model, replay the
+chat, change the user's repository, or use real data as test fixtures.
+
+This is evidence for one live normal-profile Claude capture, supplementing the
+synthetic tests and earlier Codex recovery. The separately authenticated isolated
+provider suite remains pending. Private names, session IDs, transcripts and
+memory contents are omitted from the repository.
+
 ## Capture reliability repair (0.3.7, 2026-11-26)
 
 Fixed Codex physical rollout identity versus logical conversation provenance.
